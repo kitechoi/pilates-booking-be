@@ -4,6 +4,8 @@ import com.pilaslot.classsession.domain.ClassSession;
 import com.pilaslot.classsession.domain.ClassSessionStatus;
 import com.pilaslot.classsession.domain.ClassType;
 import com.pilaslot.classsession.repository.ClassSessionRepository;
+import com.pilaslot.global.exception.BusinessException;
+import com.pilaslot.global.exception.ErrorCode;
 import com.pilaslot.instructor.domain.Instructor;
 import com.pilaslot.instructor.repository.InstructorRepository;
 import com.pilaslot.member.domain.Member;
@@ -99,8 +101,11 @@ class ReservationConcurrencyTest {
         softly.assertThat(result.successCount())
                 .as("마지막 1자리를 두고 경쟁하므로 성공은 정확히 1건이어야 한다")
                 .isEqualTo(1);
-        softly.assertThat(result.failureBreakdown().getOrDefault("BusinessException:수업 정원이 마감되었습니다.", new AtomicInteger()).get())
-                .as("나머지 요청은 락 대기 등 다른 이유가 아니라 CLASS_SESSION_FULL로 막혀야 한다")
+        softly.assertThat(result.failureBreakdown())
+                .as("실패 원인은 CLASS_SESSION_FULL 하나뿐이어야 한다")
+                .containsOnlyKeys(ErrorCode.CLASS_SESSION_FULL.name());
+        softly.assertThat(result.failureBreakdown().get(ErrorCode.CLASS_SESSION_FULL.name()).get())
+                .as("나머지 요청은 모두 CLASS_SESSION_FULL로 거절되어야 한다")
                 .isEqualTo(CONCURRENT_REQUESTS - 1);
         softly.assertThat(result.actualReservedRows())
                 .as("실제 RESERVED 예약 행 개수는 정원과 정확히 같아야 한다 (기존 3 + 신규 1)")
@@ -164,11 +169,11 @@ class ReservationConcurrencyTest {
                     startGate.await();
                     reservationService.reserve(memberId, classSessionId);
                     successCount.incrementAndGet();
-                } catch (Exception exception) {
-                    String reason = exception.getClass().getSimpleName() + ":"
-                            + rootCauseMessage(exception);
-                    failureBreakdown.computeIfAbsent(reason, key -> new AtomicInteger())
-                            .incrementAndGet();
+                } catch (BusinessException exception) {
+                    failureBreakdown.computeIfAbsent(
+                            exception.getErrorCode().name(),
+                            key -> new AtomicInteger()
+                    ).incrementAndGet();
                 } catch (Throwable throwable) {
                     unexpectedFailures.add(throwable);
                 } finally {
@@ -213,14 +218,6 @@ class ReservationConcurrencyTest {
                 failureBreakdown,
                 unexpectedFailures
         );
-    }
-
-    private String rootCauseMessage(Throwable throwable) {
-        Throwable current = throwable;
-        while (current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current.getMessage();
     }
 
     private record TrialResult(
