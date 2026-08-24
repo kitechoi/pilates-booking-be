@@ -4,6 +4,8 @@ import com.pilaslot.classsession.domain.ClassSession;
 import com.pilaslot.classsession.domain.ClassSessionStatus;
 import com.pilaslot.classsession.domain.ClassType;
 import com.pilaslot.classsession.repository.ClassSessionRepository;
+import com.pilaslot.global.exception.BusinessException;
+import com.pilaslot.global.exception.ErrorCode;
 import com.pilaslot.instructor.domain.Instructor;
 import com.pilaslot.instructor.repository.InstructorRepository;
 import com.pilaslot.member.domain.Member;
@@ -133,9 +135,11 @@ class CancelConcurrencyTest {
                     startGate.await();
                     reservationService.cancel(finalTargetMemberId, finalTargetReservationId);
                     successCount.incrementAndGet();
-                } catch (Exception exception) {
-                    String reason = exception.getClass().getSimpleName() + ":" + rootCauseMessage(exception);
-                    failureBreakdown.computeIfAbsent(reason, key -> new AtomicInteger()).incrementAndGet();
+                } catch (BusinessException exception) {
+                    failureBreakdown.computeIfAbsent(
+                            exception.getErrorCode().name(),
+                            key -> new AtomicInteger()
+                    ).incrementAndGet();
                 } catch (Throwable throwable) {
                     unexpectedFailures.add(throwable);
                 } finally {
@@ -170,8 +174,11 @@ class CancelConcurrencyTest {
         softly.assertThat(successCount.get())
                 .as("같은 예약에 대한 동시 취소는 정확히 1건만 성공해야 한다")
                 .isEqualTo(1);
-        softly.assertThat(failureBreakdown.getOrDefault("BusinessException:이미 취소된 예약입니다.", new AtomicInteger()).get())
-                .as("나머지 취소 요청은 RESERVATION_ALREADY_CANCELLED로 막혀야 한다")
+        softly.assertThat(failureBreakdown)
+                .as("실패 원인은 RESERVATION_ALREADY_CANCELLED 하나뿐이어야 한다")
+                .containsOnlyKeys(ErrorCode.RESERVATION_ALREADY_CANCELLED.name());
+        softly.assertThat(failureBreakdown.get(ErrorCode.RESERVATION_ALREADY_CANCELLED.name()).get())
+                .as("나머지 취소 요청은 모두 RESERVATION_ALREADY_CANCELLED로 막혀야 한다")
                 .isEqualTo(CONCURRENT_CANCEL_REQUESTS - 1);
         softly.assertThat(persistedReservation.getStatus())
                 .isEqualTo(ReservationStatus.CANCELLED);
@@ -182,7 +189,7 @@ class CancelConcurrencyTest {
     }
 
     @RepeatedTest(10)
-    void concurrentCancelOfDifferentReservationsCausesReservedCountLostUpdate(RepetitionInfo repetitionInfo)
+    void concurrentCancelOfDifferentReservationsPreservesReservedCountUnderLock(RepetitionInfo repetitionInfo)
             throws InterruptedException {
         String memberPrefix = "member2-" + repetitionInfo.getCurrentRepetition() + "-";
         Instructor instructor = instructorRepository.save(new Instructor("동시성 테스트 강사", null));
@@ -234,9 +241,11 @@ class CancelConcurrencyTest {
                     startGate.await();
                     reservationService.cancel(memberId, reservationId);
                     successCount.incrementAndGet();
-                } catch (Exception exception) {
-                    String reason = exception.getClass().getSimpleName() + ":" + rootCauseMessage(exception);
-                    failureBreakdown.computeIfAbsent(reason, key -> new AtomicInteger()).incrementAndGet();
+                } catch (BusinessException exception) {
+                    failureBreakdown.computeIfAbsent(
+                            exception.getErrorCode().name(),
+                            key -> new AtomicInteger()
+                    ).incrementAndGet();
                 } catch (Throwable throwable) {
                     unexpectedFailures.add(throwable);
                 } finally {
@@ -279,14 +288,6 @@ class CancelConcurrencyTest {
                 .as("reserved_count는 lost update 없이 실제 취소 건수만큼 정확히 감소해야 한다")
                 .isEqualTo(expectedReservedCount);
         softly.assertAll();
-    }
-
-    private String rootCauseMessage(Throwable throwable) {
-        Throwable current = throwable;
-        while (current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current.getMessage();
     }
 
     @TestConfiguration(proxyBeanMethods = false)
