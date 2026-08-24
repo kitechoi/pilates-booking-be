@@ -1,6 +1,8 @@
 spring:
   application:
     name: PilaSlot
+  profiles:
+    default: local
 
 app:
   timezone: Asia/Seoul
