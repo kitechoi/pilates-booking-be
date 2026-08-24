@@ -182,7 +182,7 @@ class CancelConcurrencyTest {
     }
 
     @RepeatedTest(10)
-    void concurrentCancelOfDifferentReservationsCausesReservedCountLostUpdate(RepetitionInfo repetitionInfo)
+    void concurrentCancelOfDifferentReservationsPreservesReservedCountUnderLock(RepetitionInfo repetitionInfo)
             throws InterruptedException {
         String memberPrefix = "member2-" + repetitionInfo.getCurrentRepetition() + "-";
         Instructor instructor = instructorRepository.save(new Instructor("동시성 테스트 강사", null));
