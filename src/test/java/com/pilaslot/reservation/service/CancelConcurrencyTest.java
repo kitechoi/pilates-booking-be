@@ -136,10 +136,7 @@ class CancelConcurrencyTest {
                     reservationService.cancel(finalTargetMemberId, finalTargetReservationId);
                     successCount.incrementAndGet();
                 } catch (BusinessException exception) {
-                    failureBreakdown.computeIfAbsent(
-                            exception.getErrorCode().name(),
-                            key -> new AtomicInteger()
-                    ).incrementAndGet();
+                    failureBreakdown.computeIfAbsent(exception.getErrorCode().name(), key -> new AtomicInteger()).incrementAndGet();
                 } catch (Throwable throwable) {
                     unexpectedFailures.add(throwable);
                 } finally {
@@ -242,10 +239,7 @@ class CancelConcurrencyTest {
                     reservationService.cancel(memberId, reservationId);
                     successCount.incrementAndGet();
                 } catch (BusinessException exception) {
-                    failureBreakdown.computeIfAbsent(
-                            exception.getErrorCode().name(),
-                            key -> new AtomicInteger()
-                    ).incrementAndGet();
+                    failureBreakdown.computeIfAbsent(exception.getErrorCode().name(), key -> new AtomicInteger()).incrementAndGet();
                 } catch (Throwable throwable) {
                     unexpectedFailures.add(throwable);
                 } finally {

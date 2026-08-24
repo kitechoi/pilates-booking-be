@@ -170,10 +170,7 @@ class ReservationConcurrencyTest {
                     reservationService.reserve(memberId, classSessionId);
                     successCount.incrementAndGet();
                 } catch (BusinessException exception) {
-                    failureBreakdown.computeIfAbsent(
-                            exception.getErrorCode().name(),
-                            key -> new AtomicInteger()
-                    ).incrementAndGet();
+                    failureBreakdown.computeIfAbsent(exception.getErrorCode().name(), key -> new AtomicInteger()).incrementAndGet();
                 } catch (Throwable throwable) {
                     unexpectedFailures.add(throwable);
                 } finally {
