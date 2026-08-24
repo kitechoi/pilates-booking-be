@@ -15,6 +15,17 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     Optional<Reservation> findByIdAndMemberId(Long reservationId, Long memberId);
 
     @Query("""
+            SELECT reservation.classSession.id
+            FROM Reservation reservation
+            WHERE reservation.id = :reservationId
+              AND reservation.member.id = :memberId
+            """)
+    Optional<Long> findClassSessionIdByIdAndMemberId(
+            @Param("reservationId") Long reservationId,
+            @Param("memberId") Long memberId
+    );
+
+    @Query("""
             SELECT reservation
             FROM Reservation reservation
             JOIN FETCH reservation.classSession classSession

@@ -324,11 +324,15 @@ class ReservationServiceTest {
         assertThat(reservation.getReservedAt()).isEqualTo(reservedAt);
         assertThat(classSession.getReservedCount()).isZero();
         verify(reservationRepository, never()).save(any());
+        InOrder inOrder = inOrder(reservationRepository, classSessionRepository);
+        inOrder.verify(reservationRepository).findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID);
+        inOrder.verify(classSessionRepository).findByIdForUpdate(CLASS_SESSION_ID);
+        inOrder.verify(reservationRepository).findByIdAndMemberId(RESERVATION_ID, MEMBER_ID);
     }
 
     @Test
     void rejectsUnknownReservation() {
-        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+        given(reservationRepository.findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
                 .willReturn(Optional.empty());
 
         assertCancelError(ErrorCode.RESERVATION_NOT_FOUND);
@@ -336,7 +340,7 @@ class ReservationServiceTest {
 
     @Test
     void rejectsReservationOwnedByAnotherMemberAsNotFound() {
-        given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+        given(reservationRepository.findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
                 .willReturn(Optional.empty());
 
         assertCancelError(ErrorCode.RESERVATION_NOT_FOUND);
@@ -356,6 +360,10 @@ class ReservationServiceTest {
                 NOW.minusDays(1)
         );
         reservation.cancel(NOW.minusHours(1));
+        given(reservationRepository.findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.of(CLASS_SESSION_ID));
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID))
+                .willReturn(Optional.of(reservation.getClassSession()));
         given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
                 .willReturn(Optional.of(reservation));
 
@@ -372,6 +380,10 @@ class ReservationServiceTest {
     void rejectsAfterCancellationDeadline() {
         ClassSession classSession = cancellableClassSession(NOW.plusHours(8).minusNanos(1));
         Reservation reservation = reservation(member, classSession, NOW.minusDays(1));
+        given(reservationRepository.findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.of(CLASS_SESSION_ID));
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID))
+                .willReturn(Optional.of(classSession));
         given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
                 .willReturn(Optional.of(reservation));
 
@@ -471,6 +483,10 @@ class ReservationServiceTest {
     }
 
     private void prepareSuccessfulCancellation(Reservation reservation, long weeklyCount) {
+        given(reservationRepository.findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
+                .willReturn(Optional.of(CLASS_SESSION_ID));
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID))
+                .willReturn(Optional.of(reservation.getClassSession()));
         given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
                 .willReturn(Optional.of(reservation));
         LocalDateTime weekStart = reservation.getClassSession().getStartAt().toLocalDate()

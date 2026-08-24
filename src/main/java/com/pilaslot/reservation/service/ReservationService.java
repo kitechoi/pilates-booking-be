@@ -55,6 +55,13 @@ public class ReservationService {
 
     @Transactional
     public void cancel(Long memberId, Long reservationId) {
+        Long classSessionId = reservationRepository
+                .findClassSessionIdByIdAndMemberId(reservationId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        ClassSession classSession = classSessionRepository.findByIdForUpdate(classSessionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CLASS_SESSION_NOT_FOUND));
+
         Reservation reservation = reservationRepository
                 .findByIdAndMemberId(reservationId, memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
@@ -62,10 +69,10 @@ public class ReservationService {
 
         LocalDateTime now = LocalDateTime.now(clock);
         validateCancellationTime(reservation, now);
-        validateWeeklyCancellationLimit(memberId, reservation.getClassSession().getStartAt());
+        validateWeeklyCancellationLimit(memberId, classSession.getStartAt());
 
         reservation.cancel(now);
-        reservation.getClassSession().decreaseReservedCount();
+        classSession.decreaseReservedCount();
     }
 
     private void validateClassSessionStatus(ClassSession classSession) {
