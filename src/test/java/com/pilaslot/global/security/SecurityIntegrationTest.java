@@ -103,6 +103,13 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void keepsActuatorHealthPublic() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
     void noLongerMapsNestedClassSessionReservationEndpoint() throws Exception {
         String token = jwtTokenProvider.createAccessToken(42L);
 
