@@ -26,9 +26,16 @@ public class JwtTokenProvider {
     private final Clock clock;
 
     public JwtTokenProvider(JwtProperties properties, Clock clock) {
-        byte[] secretBytes = properties.secret().getBytes(StandardCharsets.UTF_8);
+        String secret = properties.secret();
+        if (isMissing(secret)) {
+            throw new IllegalArgumentException("app.jwt.secret이 설정되지 않았습니다.");
+        }
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < MINIMUM_SECRET_LENGTH_BYTES) {
-            throw new IllegalArgumentException("JWT secret must be at least 32 bytes");
+            throw new IllegalArgumentException(
+                    "app.jwt.secret은 최소 %d바이트여야 합니다. 현재 %d바이트."
+                            .formatted(MINIMUM_SECRET_LENGTH_BYTES, secretBytes.length)
+            );
         }
         this.secretKey = Keys.hmacShaKeyFor(secretBytes);
         this.jwtParser = Jwts.parser()
@@ -37,6 +44,10 @@ public class JwtTokenProvider {
                 .build();
         this.properties = properties;
         this.clock = clock;
+    }
+
+    private static boolean isMissing(String secret) {
+        return secret == null || secret.isBlank();
     }
 
     public String createAccessToken(Long memberId) {

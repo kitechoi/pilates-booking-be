@@ -79,6 +79,34 @@ class JwtTokenProviderTest {
         );
     }
 
+    @Test
+    void throwsWhenSecretIsMissing() {
+        assertThatThrownBy(() -> providerAt(NOW, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("app.jwt.secret이 설정되지 않았습니다");
+    }
+
+    @Test
+    void throwsWhenSecretIsBlank() {
+        assertThatThrownBy(() -> providerAt(NOW, "   "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("app.jwt.secret이 설정되지 않았습니다");
+    }
+
+    @Test
+    void throwsWhenSecretIsEmpty() {
+        assertThatThrownBy(() -> providerAt(NOW, ""))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("app.jwt.secret이 설정되지 않았습니다");
+    }
+
+    @Test
+    void throwsWhenSecretIsTooShort() {
+        assertThatThrownBy(() -> providerAt(NOW, "too-short-secret"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("최소 32바이트");
+    }
+
     private JwtTokenProvider providerAt(Instant instant, String secret) {
         return new JwtTokenProvider(
                 new JwtProperties(secret, Duration.ofHours(1)),

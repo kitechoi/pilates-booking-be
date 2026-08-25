@@ -1,0 +1,22 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  datasource:
+    url: ${PILASLOT_DB_URL}
+    username: ${PILASLOT_DB_USERNAME}
+    password: ${PILASLOT_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+app:
+  jwt:
+    secret: ${PILASLOT_JWT_SECRET:}
+    expiration: 1h
