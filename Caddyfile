@@ -1,0 +1,3 @@
+{$DOMAIN} {
+	reverse_proxy {$APP_UPSTREAM:app:8081}
+}
