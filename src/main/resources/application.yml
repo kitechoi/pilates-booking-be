@@ -4,5 +4,11 @@ spring:
   profiles:
     default: local
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
 app:
   timezone: Asia/Seoul
