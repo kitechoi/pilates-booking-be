@@ -17,5 +17,22 @@ services:
       retries: 10
       start_period: 10s
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pilaslot-app
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PILASLOT_DB_URL: jdbc:postgresql://postgres:5432/${PILASLOT_DB_NAME:-pilaslot_local}
+      PILASLOT_DB_USERNAME: ${PILASLOT_DB_USERNAME:-pilaslot}
+      PILASLOT_DB_PASSWORD: ${PILASLOT_DB_PASSWORD:-pilaslot_local_password}
+      PILASLOT_JWT_SECRET: ${PILASLOT_JWT_SECRET:-pilaslot-local-jwt-secret-key-2026-development}
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pilaslot-postgres-data:
