@@ -1,7 +1,10 @@
 server:
   port: ${SERVER_PORT:8081}
+  shutdown: graceful
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 25s
   datasource:
     url: ${PILASLOT_DB_URL}
     username: ${PILASLOT_DB_USERNAME}

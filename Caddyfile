@@ -1,3 +1,3 @@
 {$API_DOMAIN} {
-	reverse_proxy {$APP_UPSTREAM:app:8081}
+	reverse_proxy __APP_UPSTREAM__
 }
