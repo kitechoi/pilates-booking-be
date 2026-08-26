@@ -1,19 +1,29 @@
+x-app: &app
+  restart: unless-stopped
+  mem_limit: 350m
+  image: ${ECR_REPOSITORY}:${IMAGE_TAG}
+  environment:
+    SPRING_PROFILES_ACTIVE: prod
+    PILASLOT_DB_URL: ${PILASLOT_DB_URL}
+    PILASLOT_DB_USERNAME: ${PILASLOT_DB_USERNAME}
+    PILASLOT_DB_PASSWORD: ${PILASLOT_DB_PASSWORD}
+    PILASLOT_JWT_SECRET: ${PILASLOT_JWT_SECRET}
+
 services:
-  app:
-    image: ${ECR_REPOSITORY}:${IMAGE_TAG}
-    container_name: pilaslot-app
-    restart: unless-stopped
-    environment:
-      SPRING_PROFILES_ACTIVE: prod
-      PILASLOT_DB_URL: ${PILASLOT_DB_URL}
-      PILASLOT_DB_USERNAME: ${PILASLOT_DB_USERNAME}
-      PILASLOT_DB_PASSWORD: ${PILASLOT_DB_PASSWORD}
-      PILASLOT_JWT_SECRET: ${PILASLOT_JWT_SECRET}
+  app-blue:
+    <<: *app
+    container_name: pilaslot-app-blue
     ports:
       - "127.0.0.1:8081:8081"
 
+  app-green:
+    <<: *app
+    container_name: pilaslot-app-green
+    ports:
+      - "127.0.0.1:8082:8081"
+
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.11.4-alpine
     container_name: pilaslot-caddy
     restart: unless-stopped
     environment:
@@ -25,8 +35,6 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
-    depends_on:
-      - app
 
 volumes:
   caddy-data:

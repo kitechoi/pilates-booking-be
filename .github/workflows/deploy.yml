@@ -77,7 +77,7 @@ jobs:
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
           mkdir -p /opt/pilaslot
           echo '$COMPOSE_B64' | base64 -d > /opt/pilaslot/compose.prod.yml
-          echo '$CADDYFILE_B64' | base64 -d > /opt/pilaslot/Caddyfile
+          echo '$CADDYFILE_B64' | base64 -d > /opt/pilaslot/Caddyfile.template
           DB_PASSWORD=\$(aws ssm get-parameter --name /pilaslot/db-password --with-decryption --region $AWS_REGION --query Parameter.Value --output text)
           JWT_SECRET=\$(aws ssm get-parameter --name /pilaslot/jwt-secret --with-decryption --region $AWS_REGION --query Parameter.Value --output text)
           DB_PASSWORD=\${DB_PASSWORD//\\\$/\\\$\\\$}
@@ -94,22 +94,99 @@ jobs:
           chmod 600 /opt/pilaslot/.env
           cd /opt/pilaslot
           docker compose --env-file .env -f compose.prod.yml config --quiet
-          docker compose --env-file .env -f compose.prod.yml pull
-          LABEL=\$(docker inspect -f "{{index .Config.Labels \"com.docker.compose.project\"}}" pilaslot-app 2>/dev/null || true)
-          if [ -z "\$LABEL" ]; then
-            docker rm -f pilaslot-app 2>/dev/null || true
+
+          ACTIVE_COLOR=\$(cat active_color 2>/dev/null || echo blue)
+          if [ "\$ACTIVE_COLOR" = "blue" ]; then
+            NEW_COLOR=green
+            NEW_PORT=8082
+          else
+            NEW_COLOR=blue
+            NEW_PORT=8081
           fi
-          docker compose --env-file .env -f compose.prod.yml up -d
+          echo "active=\$ACTIVE_COLOR new=\$NEW_COLOR port=\$NEW_PORT"
+
+          docker compose --env-file .env -f compose.prod.yml pull "app-\$NEW_COLOR"
+          docker compose --env-file .env -f compose.prod.yml up -d "app-\$NEW_COLOR"
+
+          NEW_HEALTHY=0
           for i in \$(seq 1 15); do
-            if curl -fs --resolve "$API_DOMAIN:443:127.0.0.1" "https://$API_DOMAIN/actuator/health" | grep -q '"status":"UP"'; then
-              echo "Health check passed"
-              docker image prune -af
-              exit 0
+            if curl -fs "http://127.0.0.1:\$NEW_PORT/actuator/health" | grep -q '"status":"UP"'; then
+              NEW_HEALTHY=1
+              break
             fi
             sleep 4
           done
-          echo "Health check failed after retries"
-          exit 1
+
+          if [ "\$NEW_HEALTHY" -ne 1 ]; then
+            echo "새 컨테이너(\$NEW_COLOR) 헬스체크 실패, 트래픽 전환하지 않고 롤백"
+            docker rm -f "pilaslot-app-\$NEW_COLOR" 2>/dev/null || true
+            exit 1
+          fi
+
+          cp Caddyfile Caddyfile.previous 2>/dev/null || true
+          sed "s#__APP_UPSTREAM__#app-\$NEW_COLOR:8081#" Caddyfile.template > Caddyfile
+
+          CADDY_RUNNING=\$(docker inspect -f '{{.State.Running}}' pilaslot-caddy 2>/dev/null || echo false)
+          if [ "\$CADDY_RUNNING" = "true" ]; then
+            if ! docker exec pilaslot-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
+              echo "Caddy reload 자체가 실패, 이전 설정으로 즉시 복원 시도"
+              if [ -f Caddyfile.previous ]; then
+                cp Caddyfile.previous Caddyfile
+                docker exec pilaslot-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile || true
+              fi
+              docker rm -f "pilaslot-app-\$NEW_COLOR" 2>/dev/null || true
+              exit 1
+            fi
+          else
+            docker compose --env-file .env -f compose.prod.yml up -d caddy
+          fi
+
+          CUTOVER_OK=0
+          for i in \$(seq 1 15); do
+            if curl -fs --resolve "$API_DOMAIN:443:127.0.0.1" "https://$API_DOMAIN/actuator/health" | grep -q '"status":"UP"'; then
+              CUTOVER_OK=1
+              break
+            fi
+            sleep 4
+          done
+
+          if [ "\$CUTOVER_OK" -ne 1 ]; then
+            echo "전환 후 실제 도메인 헬스체크 실패, 이전 버전(\$ACTIVE_COLOR)으로 롤백 시도"
+            ROLLBACK_OK=0
+            CADDY_RUNNING=\$(docker inspect -f '{{.State.Running}}' pilaslot-caddy 2>/dev/null || echo false)
+            if [ -f Caddyfile.previous ] && [ "\$CADDY_RUNNING" = "true" ]; then
+              cp Caddyfile.previous Caddyfile
+              if docker exec pilaslot-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
+                for i in \$(seq 1 15); do
+                  if curl -fs --resolve "$API_DOMAIN:443:127.0.0.1" "https://$API_DOMAIN/actuator/health" | grep -q '"status":"UP"'; then
+                    ROLLBACK_OK=1
+                    break
+                  fi
+                  sleep 4
+                done
+              fi
+            fi
+
+            if [ "\$ROLLBACK_OK" -eq 1 ]; then
+              echo "이전 버전(\$ACTIVE_COLOR)으로 정상 롤백 확인, 신버전(\$NEW_COLOR) 컨테이너 정리"
+              docker stop -t 30 "pilaslot-app-\$NEW_COLOR" 2>/dev/null || true
+              docker rm -f "pilaslot-app-\$NEW_COLOR" 2>/dev/null || true
+            else
+              echo "롤백도 실패 — Caddy가 어느 버전을 보고 있는지 불확실하므로 신/구버전 컨테이너 모두 유지, 수동 확인 필요"
+            fi
+            exit 1
+          fi
+
+          echo "\$NEW_COLOR" > active_color
+          docker stop -t 30 pilaslot-app 2>/dev/null || true
+          docker rm -f pilaslot-app 2>/dev/null || true
+          if [ "\$ACTIVE_COLOR" != "\$NEW_COLOR" ]; then
+            docker stop -t 30 "pilaslot-app-\$ACTIVE_COLOR" 2>/dev/null || true
+            docker rm -f "pilaslot-app-\$ACTIVE_COLOR" 2>/dev/null || true
+          fi
+
+          echo "Deploy succeeded (color=\$NEW_COLOR)"
+          docker image prune -af
           EOF
           )
 
@@ -125,16 +202,23 @@ jobs:
 
           echo "SSM Command ID: $COMMAND_ID"
 
-          WAIT_STATUS=0
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "$EC2_INSTANCE_ID" || WAIT_STATUS=$?
+          STATUS="Pending"
+          for i in $(seq 1 60); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$EC2_INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Success|Failed|Cancelled|Cancelling|TimedOut) break ;;
+              *) sleep 5 ;;
+            esac
+          done
 
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID"
 
-          if [ "$WAIT_STATUS" -ne 0 ]; then
-            echo "SSM command did not complete successfully (wait exit code $WAIT_STATUS)"
+          if [ "$STATUS" != "Success" ]; then
+            echo "SSM command did not succeed (status: $STATUS)"
             exit 1
           fi
