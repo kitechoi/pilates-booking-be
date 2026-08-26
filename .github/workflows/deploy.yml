@@ -202,9 +202,6 @@ jobs:
 
           echo "SSM Command ID: $COMMAND_ID"
 
-          # aws ssm wait command-executed의 기본 대기 시간은 delay 5s * maxAttempts 20 = 100초뿐이라,
-          # 이미지 pull + JVM 부팅 + 최대 120초짜리 헬스체크 두 번(신버전 직접 + 전환 후 도메인)을 감당 못 할 수 있음 —
-          # 그래서 5분(300초)짜리 폴링을 직접 구현.
           STATUS="Pending"
           for i in $(seq 1 60); do
             STATUS=$(aws ssm get-command-invocation \
