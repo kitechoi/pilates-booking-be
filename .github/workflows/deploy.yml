@@ -64,9 +64,11 @@ jobs:
           PILASLOT_DB_URL: ${{ vars.PILASLOT_DB_URL }}
           PILASLOT_DB_USERNAME: ${{ vars.PILASLOT_DB_USERNAME }}
           DOMAIN: ${{ vars.DOMAIN }}
+          API_DOMAIN: ${{ vars.API_DOMAIN }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           : "${DOMAIN:?DOMAIN repository variable is required}"
+          : "${API_DOMAIN:?API_DOMAIN repository variable is required}"
           ECR_REGISTRY="${ECR_REPOSITORY%%/*}"
           COMPOSE_B64=$(base64 -w0 compose.prod.yml)
           CADDYFILE_B64=$(base64 -w0 Caddyfile)
@@ -86,6 +88,7 @@ jobs:
           ECR_REPOSITORY=$ECR_REPOSITORY
           IMAGE_TAG=$IMAGE_TAG
           DOMAIN=$DOMAIN
+          API_DOMAIN=$API_DOMAIN
           PILASLOT_DB_URL=$PILASLOT_DB_URL
           PILASLOT_DB_USERNAME=$PILASLOT_DB_USERNAME
           PILASLOT_DB_PASSWORD=\$DB_PASSWORD
