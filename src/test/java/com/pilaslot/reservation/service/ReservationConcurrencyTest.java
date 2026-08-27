@@ -31,6 +31,8 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -83,6 +85,9 @@ class ReservationConcurrencyTest {
 
     @Autowired
     private ReservationRepository reservationRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Autowired
     private PassProductRepository passProductRepository;
@@ -169,12 +174,13 @@ class ReservationConcurrencyTest {
                         "경쟁 회원 " + i,
                         "010-0000-0000"
                 )))
-                .peek(member -> PersistentPassFixtures.issue(
+                .peek(member -> PersistentPassFixtures.issueAtomically(
                         member,
                         classDate,
                         passProductRepository,
                         memberPassRepository,
-                        memberPassHistoryRepository
+                        memberPassHistoryRepository,
+                        transactionManager
                 ))
                 .map(Member::getId)
                 .toList();
@@ -245,23 +251,26 @@ class ReservationConcurrencyTest {
     }
 
     private Reservation saveDebitedReservation(Member member, ClassSession classSession) {
-        MemberPass memberPass = PersistentPassFixtures.issue(
+        MemberPass memberPass = PersistentPassFixtures.issueAtomically(
                 member,
                 classSession.getStartAt().toLocalDate(),
                 passProductRepository,
                 memberPassRepository,
-                memberPassHistoryRepository
+                memberPassHistoryRepository,
+                transactionManager
         );
-        memberPass.debit();
-        memberPassRepository.save(memberPass);
-        Reservation reservation = reservationRepository.save(Reservation.reserve(
-                member,
-                classSession,
-                memberPass,
-                NOW.minusDays(1)
-        ));
-        memberPassHistoryRepository.save(MemberPassHistory.reservationDebit(memberPass, reservation));
-        return reservation;
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            MemberPass persistedPass = memberPassRepository.findById(memberPass.getId()).orElseThrow();
+            persistedPass.debit();
+            Reservation reservation = reservationRepository.save(Reservation.reserve(
+                    member,
+                    classSession,
+                    persistedPass,
+                    NOW.minusDays(1)
+            ));
+            memberPassHistoryRepository.save(MemberPassHistory.reservationDebit(persistedPass, reservation));
+            return reservation;
+        });
     }
 
     private record TrialResult(

@@ -8,6 +8,8 @@ import com.pilaslot.pass.domain.PassProduct;
 import com.pilaslot.pass.repository.MemberPassHistoryRepository;
 import com.pilaslot.pass.repository.MemberPassRepository;
 import com.pilaslot.pass.repository.PassProductRepository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -45,5 +47,22 @@ public final class PersistentPassFixtures {
                 null
         ));
         return memberPass;
+    }
+
+    public static MemberPass issueAtomically(
+            Member member,
+            LocalDate classDate,
+            PassProductRepository passProductRepository,
+            MemberPassRepository memberPassRepository,
+            MemberPassHistoryRepository historyRepository,
+            PlatformTransactionManager transactionManager
+    ) {
+        return new TransactionTemplate(transactionManager).execute(status -> issue(
+                member,
+                classDate,
+                passProductRepository,
+                memberPassRepository,
+                historyRepository
+        ));
     }
 }

@@ -28,6 +28,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -62,6 +64,7 @@ class MemberPassReservationConcurrencyTest {
     @Autowired private PassProductRepository passProductRepository;
     @Autowired private MemberPassRepository memberPassRepository;
     @Autowired private MemberPassHistoryRepository historyRepository;
+    @Autowired private PlatformTransactionManager transactionManager;
 
     @Test
     void sameMemberCannotSpendOneRemainingPassOnTwoDifferentClassesConcurrently() throws Exception {
@@ -72,12 +75,15 @@ class MemberPassReservationConcurrencyTest {
                 "ONE_" + UUID.randomUUID(), "1회 테스트권", 50000, 1, 30
         ));
         LocalDate classDate = LocalDate.of(2026, 8, 21);
-        MemberPass memberPass = memberPassRepository.save(MemberPass.issue(
-                member, product, 50000, 1, classDate.minusDays(1), classDate.plusDays(1)
-        ));
-        historyRepository.save(MemberPassHistory.issued(
-                memberPass, MemberPassHistoryActorType.SYSTEM, null
-        ));
+        MemberPass memberPass = new TransactionTemplate(transactionManager).execute(status -> {
+            MemberPass issuedPass = memberPassRepository.save(MemberPass.issue(
+                    member, product, 50000, 1, classDate.minusDays(1), classDate.plusDays(1)
+            ));
+            historyRepository.save(MemberPassHistory.issued(
+                    issuedPass, MemberPassHistoryActorType.SYSTEM, null
+            ));
+            return issuedPass;
+        });
 
         Instructor instructor = instructorRepository.save(new Instructor("동시성 강사", null));
         List<Long> classSessionIds = List.of(
