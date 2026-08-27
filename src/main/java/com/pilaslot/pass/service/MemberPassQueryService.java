@@ -1,6 +1,5 @@
 package com.pilaslot.pass.service;
 
-import com.pilaslot.pass.domain.MemberPassAvailability;
 import com.pilaslot.pass.dto.response.MemberPassListResponse;
 import com.pilaslot.pass.dto.response.MemberPassResponse;
 import com.pilaslot.pass.repository.MemberPassRepository;
@@ -19,13 +18,18 @@ public class MemberPassQueryService {
     private final Clock clock;
 
     @Transactional(readOnly = true)
-    public MemberPassListResponse getMyPasses(Long memberId, boolean includeUnavailable) {
+    public MemberPassListResponse getMyPasses(
+            Long memberId,
+            LocalDate usableOn,
+            boolean includeUnavailable
+    ) {
         LocalDate today = LocalDate.now(clock);
+        LocalDate eligibilityDate = usableOn == null ? today : usableOn;
         var responses = memberPassRepository.findAllByMemberIdOrderByExpiresOnAscIdAsc(memberId)
                 .stream()
                 .filter(memberPass -> includeUnavailable
-                        || memberPass.availabilityAt(today) == MemberPassAvailability.AVAILABLE)
-                .map(memberPass -> MemberPassResponse.from(memberPass, today))
+                        || memberPass.isUsableFor(eligibilityDate))
+                .map(memberPass -> MemberPassResponse.from(memberPass, today, eligibilityDate))
                 .toList();
         return new MemberPassListResponse(responses);
     }

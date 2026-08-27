@@ -15,9 +15,14 @@ public record MemberPassResponse(
         LocalDate validFrom,
         LocalDate expiresOn,
         MemberPassStatus status,
-        MemberPassAvailability availability
+        MemberPassAvailability availability,
+        boolean usable
 ) {
-    public static MemberPassResponse from(MemberPass memberPass, LocalDate today) {
+    public static MemberPassResponse from(
+            MemberPass memberPass,
+            LocalDate today,
+            LocalDate usableOn
+    ) {
         return new MemberPassResponse(
                 memberPass.getId(),
                 memberPass.getProductNameSnapshot(),
@@ -27,7 +32,8 @@ public record MemberPassResponse(
                 memberPass.getValidFrom(),
                 memberPass.getExpiresOn(),
                 memberPass.getStatus(),
-                memberPass.availabilityAt(today)
+                memberPass.availabilityAt(today),
+                memberPass.isUsableFor(usableOn)
         );
     }
 }
