@@ -334,6 +334,7 @@ class ReservationServiceTest {
         LocalDateTime reservedAt = NOW.minusDays(1);
         ClassSession classSession = cancellableClassSession(DEFAULT_START_AT);
         Reservation reservation = reservation(member, classSession, reservedAt);
+        MemberPass reservationPass = reservation.getMemberPass();
         prepareSuccessfulCancellation(reservation, 0);
 
         reservationService.cancel(MEMBER_ID, RESERVATION_ID);
@@ -342,6 +343,8 @@ class ReservationServiceTest {
         assertThat(reservation.getCancelledAt()).isEqualTo(NOW);
         assertThat(reservation.getReservedAt()).isEqualTo(reservedAt);
         assertThat(classSession.getReservedCount()).isZero();
+        assertThat(reservationPass.getRemainingCount()).isEqualTo(reservationPass.getInitialCount());
+        verify(memberPassRepository).findByIdForUpdate(reservationPass.getId());
         verify(reservationRepository, never()).save(any());
         InOrder inOrder = inOrder(reservationRepository, classSessionRepository);
         inOrder.verify(reservationRepository).findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID);
@@ -539,6 +542,10 @@ class ReservationServiceTest {
                 weekStart,
                 weekStart.plusWeeks(1)
         )).willReturn(weeklyCount);
+        if (reservation.getMemberPass() != null) {
+            lenient().when(memberPassRepository.findByIdForUpdate(reservation.getMemberPass().getId()))
+                    .thenReturn(Optional.of(reservation.getMemberPass()));
+        }
     }
 
     private Reservation reservation(

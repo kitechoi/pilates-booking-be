@@ -93,10 +93,12 @@ public class ReservationService {
         validateCancellationTime(reservation, now);
         validateWeeklyCancellationLimit(memberId, classSession.getStartAt());
 
-        MemberPass memberPass = reservation.getMemberPass();
-        if (memberPass == null) {
+        MemberPass linkedMemberPass = reservation.getMemberPass();
+        if (linkedMemberPass == null) {
             throw new BusinessException(ErrorCode.RESERVATION_MEMBER_PASS_NOT_ASSIGNED);
         }
+        MemberPass memberPass = memberPassRepository.findByIdForUpdate(linkedMemberPass.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_MEMBER_PASS_NOT_ASSIGNED));
         memberPass.refund();
         reservation.cancel(now, CancellationSource.MEMBER);
         memberPassHistoryRepository.save(MemberPassHistory.cancellationRefund(memberPass, reservation));

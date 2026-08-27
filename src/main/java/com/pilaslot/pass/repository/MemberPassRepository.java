@@ -13,8 +13,14 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface MemberPassRepository extends JpaRepository<MemberPass, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("SELECT memberPass FROM MemberPass memberPass WHERE memberPass.id = :memberPassId")
+    Optional<MemberPass> findByIdForUpdate(@Param("memberPassId") Long memberPassId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
