@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 public record ReservationCreateResponse(
         Long id,
         Long classSessionId,
+        Long memberPassId,
+        String passProductName,
+        int remainingPassCount,
         ReservationStatus status,
         LocalDateTime reservedAt
 ) {
@@ -16,6 +19,9 @@ public record ReservationCreateResponse(
         return new ReservationCreateResponse(
                 reservation.getId(),
                 reservation.getClassSession().getId(),
+                reservation.getMemberPass().getId(),
+                reservation.getMemberPass().getProductNameSnapshot(),
+                reservation.getMemberPass().getRemainingCount(),
                 reservation.getStatus(),
                 reservation.getReservedAt()
         );

@@ -7,6 +7,12 @@ import com.pilaslot.global.exception.BusinessException;
 import com.pilaslot.global.exception.ErrorCode;
 import com.pilaslot.member.domain.Member;
 import com.pilaslot.member.repository.MemberRepository;
+import com.pilaslot.pass.domain.MemberPass;
+import com.pilaslot.pass.domain.MemberPassHistory;
+import com.pilaslot.pass.domain.MemberPassStatus;
+import com.pilaslot.pass.repository.MemberPassHistoryRepository;
+import com.pilaslot.pass.repository.MemberPassRepository;
+import com.pilaslot.reservation.domain.CancellationSource;
 import com.pilaslot.reservation.domain.Reservation;
 import com.pilaslot.reservation.domain.ReservationPolicy;
 import com.pilaslot.reservation.domain.ReservationStatus;
@@ -21,6 +27,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -29,10 +36,14 @@ public class ReservationService {
     private final ClassSessionRepository classSessionRepository;
     private final MemberRepository memberRepository;
     private final ReservationRepository reservationRepository;
+    private final MemberPassRepository memberPassRepository;
+    private final MemberPassHistoryRepository memberPassHistoryRepository;
     private final Clock clock;
 
     @Transactional
     public ReservationCreateResponse reserve(Long memberId, Long classSessionId) {
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
         ClassSession classSession = classSessionRepository.findByIdForUpdate(classSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CLASS_SESSION_NOT_FOUND));
         validateClassSessionStatus(classSession);
@@ -40,14 +51,22 @@ public class ReservationService {
         LocalDateTime now = LocalDateTime.now(clock);
         validateReservationTime(classSession, now);
 
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
         validateDuplicate(memberId, classSessionId);
         validateWeeklyLimit(memberId, classSession.getStartAt());
         validateCapacity(classSession);
 
-        Reservation reservation = Reservation.reserve(member, classSession, now);
+        MemberPass memberPass = memberPassRepository.findUsableForUpdate(
+                        memberId,
+                        MemberPassStatus.ACTIVE,
+                        classSession.getStartAt().toLocalDate(),
+                        PageRequest.of(0, 1)
+                ).stream()
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NO_USABLE_MEMBER_PASS));
+        memberPass.debit();
+        Reservation reservation = Reservation.reserve(member, classSession, memberPass, now);
         Reservation savedReservation = reservationRepository.save(reservation);
+        memberPassHistoryRepository.save(MemberPassHistory.reservationDebit(memberPass, savedReservation));
         classSession.increaseReservedCount();
 
         return ReservationCreateResponse.from(savedReservation);
@@ -58,6 +77,9 @@ public class ReservationService {
         Long classSessionId = reservationRepository
                 .findClassSessionIdByIdAndMemberId(reservationId, memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
 
         ClassSession classSession = classSessionRepository.findByIdForUpdate(classSessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CLASS_SESSION_NOT_FOUND));
@@ -71,7 +93,13 @@ public class ReservationService {
         validateCancellationTime(reservation, now);
         validateWeeklyCancellationLimit(memberId, classSession.getStartAt());
 
-        reservation.cancel(now);
+        MemberPass memberPass = reservation.getMemberPass();
+        if (memberPass == null) {
+            throw new IllegalStateException("백필되지 않은 예약은 수강권 기능 버전에서 취소할 수 없습니다.");
+        }
+        memberPass.refund();
+        reservation.cancel(now, CancellationSource.MEMBER);
+        memberPassHistoryRepository.save(MemberPassHistory.cancellationRefund(memberPass, reservation));
         classSession.decreaseReservedCount();
     }
 
@@ -140,9 +168,10 @@ public class ReservationService {
                 .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDateTime weekStart = weekStartDate.atStartOfDay();
         LocalDateTime weekEnd = weekStart.plusWeeks(1);
-        long cancellationCount = reservationRepository.countByMemberAndStatusInClassSessionWeek(
+        long cancellationCount = reservationRepository.countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                 memberId,
                 ReservationStatus.CANCELLED,
+                CancellationSource.MEMBER,
                 weekStart,
                 weekEnd
         );

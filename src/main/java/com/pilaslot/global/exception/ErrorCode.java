@@ -25,6 +25,7 @@ public enum ErrorCode {
     RESERVATION_ALREADY_CANCELLED(HttpStatus.CONFLICT, "이미 취소된 예약입니다."),
     CANCELLATION_CLOSED(HttpStatus.CONFLICT, "취소 가능 시간이 지났습니다."),
     WEEKLY_CANCELLATION_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "주간 취소 가능 횟수를 초과했습니다."),
+    NO_USABLE_MEMBER_PASS(HttpStatus.CONFLICT, "수업일에 사용할 수 있는 수강권이 없습니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 HTTP 메서드입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");

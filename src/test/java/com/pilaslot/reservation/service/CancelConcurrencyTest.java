@@ -10,10 +10,16 @@ import com.pilaslot.instructor.domain.Instructor;
 import com.pilaslot.instructor.repository.InstructorRepository;
 import com.pilaslot.member.domain.Member;
 import com.pilaslot.member.repository.MemberRepository;
+import com.pilaslot.pass.domain.MemberPass;
+import com.pilaslot.pass.domain.MemberPassHistory;
+import com.pilaslot.pass.repository.MemberPassHistoryRepository;
+import com.pilaslot.pass.repository.MemberPassRepository;
+import com.pilaslot.pass.repository.PassProductRepository;
 import com.pilaslot.reservation.domain.Reservation;
 import com.pilaslot.reservation.domain.ReservationStatus;
 import com.pilaslot.reservation.repository.ReservationRepository;
 import com.pilaslot.support.PostgreSqlTestContainerConfiguration;
+import com.pilaslot.support.PersistentPassFixtures;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.RepetitionInfo;
@@ -77,6 +83,15 @@ class CancelConcurrencyTest {
     @Autowired
     private ReservationRepository reservationRepository;
 
+    @Autowired
+    private PassProductRepository passProductRepository;
+
+    @Autowired
+    private MemberPassRepository memberPassRepository;
+
+    @Autowired
+    private MemberPassHistoryRepository memberPassHistoryRepository;
+
     @DynamicPropertySource
     static void increaseConnectionPool(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> CONCURRENT_CANCEL_REQUESTS + 5);
@@ -106,9 +121,7 @@ class CancelConcurrencyTest {
                     "회원 " + i,
                     "010-0000-0000"
             ));
-            Reservation reservation = reservationRepository.save(
-                    Reservation.reserve(member, classSession, NOW.minusDays(1))
-            );
+            Reservation reservation = saveDebitedReservation(member, classSession);
             classSession.increaseReservedCount();
             if (i == 0) {
                 targetReservationId = reservation.getId();
@@ -214,9 +227,7 @@ class CancelConcurrencyTest {
                     "회원 " + i,
                     "010-0000-0000"
             ));
-            Reservation reservation = reservationRepository.save(
-                    Reservation.reserve(member, classSession, NOW.minusDays(1))
-            );
+            Reservation reservation = saveDebitedReservation(member, classSession);
             classSession.increaseReservedCount();
             reservationIds.add(reservation.getId());
             memberIds.add(member.getId());
@@ -300,5 +311,25 @@ class CancelConcurrencyTest {
             Instant instant = NOW.atZone(zoneId).toInstant();
             return Clock.fixed(instant, zoneId);
         }
+    }
+
+    private Reservation saveDebitedReservation(Member member, ClassSession classSession) {
+        MemberPass memberPass = PersistentPassFixtures.issue(
+                member,
+                classSession.getStartAt().toLocalDate(),
+                passProductRepository,
+                memberPassRepository,
+                memberPassHistoryRepository
+        );
+        memberPass.debit();
+        memberPassRepository.save(memberPass);
+        Reservation reservation = reservationRepository.save(Reservation.reserve(
+                member,
+                classSession,
+                memberPass,
+                NOW.minusDays(1)
+        ));
+        memberPassHistoryRepository.save(MemberPassHistory.reservationDebit(memberPass, reservation));
+        return reservation;
     }
 }

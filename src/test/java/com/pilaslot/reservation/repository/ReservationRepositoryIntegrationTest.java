@@ -8,9 +8,15 @@ import com.pilaslot.instructor.domain.Instructor;
 import com.pilaslot.instructor.repository.InstructorRepository;
 import com.pilaslot.member.domain.Member;
 import com.pilaslot.member.repository.MemberRepository;
+import com.pilaslot.pass.domain.MemberPass;
+import com.pilaslot.pass.repository.MemberPassHistoryRepository;
+import com.pilaslot.pass.repository.MemberPassRepository;
+import com.pilaslot.pass.repository.PassProductRepository;
+import com.pilaslot.reservation.domain.CancellationSource;
 import com.pilaslot.reservation.domain.Reservation;
 import com.pilaslot.reservation.domain.ReservationStatus;
 import com.pilaslot.support.PostgreSqlTestContainerConfiguration;
+import com.pilaslot.support.PersistentPassFixtures;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +51,15 @@ class ReservationRepositoryIntegrationTest {
 
     @Autowired
     private ReservationRepository reservationRepository;
+
+    @Autowired
+    private PassProductRepository passProductRepository;
+
+    @Autowired
+    private MemberPassRepository memberPassRepository;
+
+    @Autowired
+    private MemberPassHistoryRepository memberPassHistoryRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -249,20 +264,36 @@ class ReservationRepositoryIntegrationTest {
     }
 
     private Reservation saveReservation(Member member, ClassSession classSession) {
+        MemberPass memberPass = PersistentPassFixtures.issue(
+                member,
+                classSession.getStartAt().toLocalDate(),
+                passProductRepository,
+                memberPassRepository,
+                memberPassHistoryRepository
+        );
         return reservationRepository.save(Reservation.reserve(
                 member,
                 classSession,
+                memberPass,
                 classSession.getStartAt().minusDays(1)
         ));
     }
 
     private Reservation saveCancelledReservation(Member member, ClassSession classSession) {
+        MemberPass memberPass = PersistentPassFixtures.issue(
+                member,
+                classSession.getStartAt().toLocalDate(),
+                passProductRepository,
+                memberPassRepository,
+                memberPassHistoryRepository
+        );
         Reservation reservation = Reservation.reserve(
                 member,
                 classSession,
+                memberPass,
                 classSession.getStartAt().minusDays(1)
         );
-        reservation.cancel(classSession.getStartAt().minusHours(10));
+        reservation.cancel(classSession.getStartAt().minusHours(10), CancellationSource.MEMBER);
         return reservationRepository.save(reservation);
     }
 }
