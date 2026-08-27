@@ -24,10 +24,12 @@ FROM (
 WHERE remaining_count_after <> calculated_remaining;
 
 -- 3. 예약 회원과 수강권 소유 회원
-SELECT r.id AS reservation_id, r.member_id, mp.member_id AS pass_member_id
+SELECT r.id AS reservation_id, r.member_pass_id, r.member_id, mp.member_id AS pass_member_id
 FROM reservation r
-JOIN member_pass mp ON mp.id = r.member_pass_id
-WHERE r.member_id <> mp.member_id;
+LEFT JOIN member_pass mp ON mp.id = r.member_pass_id
+WHERE r.member_pass_id IS NULL
+   OR mp.id IS NULL
+   OR r.member_id <> mp.member_id;
 
 -- 4. 예약 차감·취소 환불 cardinality
 SELECT reservation_id, type, COUNT(*)
@@ -40,7 +42,13 @@ HAVING COUNT(*) > 1;
 SELECT id, status, cancellation_source
 FROM reservation
 WHERE (status = 'RESERVED' AND cancellation_source IS NOT NULL)
-   OR (status = 'CANCELLED' AND cancellation_source IS NULL);
+   OR (
+       status = 'CANCELLED'
+       AND (
+           cancellation_source IS NULL
+           OR cancellation_source NOT IN ('MEMBER', 'ADMIN', 'CLASS_SESSION')
+       )
+   );
 
 -- 6. 수업 reserved_count와 실제 활성 예약 수
 SELECT cs.id, cs.reserved_count, COUNT(r.id) AS active_reservations

@@ -19,7 +19,9 @@
 
 ## 3. 예약 쓰기 프리즈와 백필
 
-예약 생성·취소를 차단한 상태에서 상품, 회원 수강권, `MIGRATION_OPENING`, 기존 예약의 `member_pass_id`를 백필한다. 기존 애플리케이션 경로로 생성된 `CANCELLED` 예약만 확인 후 `cancellation_source='MEMBER'`로 백필하며 `RESERVED`는 NULL로 둔다.
+예약 생성·취소를 차단한 상태에서 상품, 회원 수강권, `MIGRATION_OPENING`, 기존 예약의 `member_pass_id`를 백필한다. `RESERVED` 예약의 `cancellation_source`는 NULL로 둔다.
+
+`CANCELLED` 예약은 예약 ID별 취소 근거를 확인해 `MEMBER`, `ADMIN`, `CLASS_SESSION` 중 실제 출처를 기록한다. 기존 회원 취소 API로 처리됐음이 확인된 행만 `MEMBER`로 분류하고, 직접 SQL 변경이나 운영 조치가 있었던 행은 감사 로그와 운영 기록을 기준으로 분류한다. 근거를 확인할 수 없는 행을 임의로 `MEMBER` 처리하지 않으며, 미분류 행이 남으면 Contract 배포를 중단한다.
 
 ## 4. 대사와 호환 기능 버전 배포
 
@@ -50,7 +52,10 @@ ALTER TABLE reservation
     ADD CONSTRAINT ck_reservation_cancellation_source
         CHECK (
             (status = 'RESERVED' AND cancellation_source IS NULL)
-            OR (status = 'CANCELLED' AND cancellation_source IS NOT NULL)
+            OR (
+                status = 'CANCELLED'
+                AND cancellation_source IN ('MEMBER', 'ADMIN', 'CLASS_SESSION')
+            )
         );
 ```
 
