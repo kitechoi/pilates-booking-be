@@ -396,6 +396,21 @@ class ReservationServiceTest {
     }
 
     @Test
+    void rejectsCancellationWhenMemberPassIsNotAssigned() {
+        Reservation reservation = reservation(
+                member,
+                cancellableClassSession(DEFAULT_START_AT),
+                NOW.minusDays(1)
+        );
+        ReflectionTestUtils.setField(reservation, "memberPass", null);
+        prepareSuccessfulCancellation(reservation, 0);
+
+        assertCancelError(ErrorCode.RESERVATION_MEMBER_PASS_NOT_ASSIGNED);
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RESERVED);
+        verify(memberPassHistoryRepository, never()).save(any());
+    }
+
+    @Test
     void rejectsAfterCancellationDeadline() {
         ClassSession classSession = cancellableClassSession(NOW.plusHours(8).minusNanos(1));
         Reservation reservation = reservation(member, classSession, NOW.minusDays(1));

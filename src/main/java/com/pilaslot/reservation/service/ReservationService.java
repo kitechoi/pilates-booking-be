@@ -95,7 +95,7 @@ public class ReservationService {
 
         MemberPass memberPass = reservation.getMemberPass();
         if (memberPass == null) {
-            throw new IllegalStateException("백필되지 않은 예약은 수강권 기능 버전에서 취소할 수 없습니다.");
+            throw new BusinessException(ErrorCode.RESERVATION_MEMBER_PASS_NOT_ASSIGNED);
         }
         memberPass.refund();
         reservation.cancel(now, CancellationSource.MEMBER);
