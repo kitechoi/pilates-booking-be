@@ -94,7 +94,68 @@ CREATE UNIQUE INDEX uk_member_pass_history_cancellation_refund
     ON member_pass_history (reservation_id)
     WHERE type = 'CANCELLATION_REFUND';
 
--- Contract 배포에서 백필·대사 후 적용한다:
--- reservation.member_pass_id NOT NULL
--- reservation(member_pass_id, member_id) -> member_pass(id, member_id) 복합 FK
--- status와 cancellation_source의 조건부 CHECK
+CREATE INDEX ix_reservation_member_pass
+    ON reservation (member_pass_id);
+
+CREATE FUNCTION prevent_member_pass_history_mutation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RAISE EXCEPTION 'member_pass_history is append-only';
+END;
+$$;
+
+CREATE TRIGGER trg_member_pass_history_append_only
+BEFORE UPDATE OR DELETE ON member_pass_history
+FOR EACH ROW
+EXECUTE FUNCTION prevent_member_pass_history_mutation();
+
+CREATE FUNCTION validate_member_pass_balance()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    target_member_pass_id BIGINT;
+    stored_remaining_count INTEGER;
+    history_count_sum BIGINT;
+BEGIN
+    IF TG_TABLE_NAME = 'member_pass' THEN
+        target_member_pass_id := NEW.id;
+    ELSE
+        target_member_pass_id := NEW.member_pass_id;
+    END IF;
+
+    SELECT remaining_count
+    INTO stored_remaining_count
+    FROM member_pass
+    WHERE id = target_member_pass_id;
+
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT COALESCE(SUM(count_delta), 0)
+    INTO history_count_sum
+    FROM member_pass_history
+    WHERE member_pass_id = target_member_pass_id;
+
+    IF stored_remaining_count <> history_count_sum THEN
+        RAISE EXCEPTION 'member_pass balance does not match history sum';
+    END IF;
+
+    RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER trg_member_pass_balance
+AFTER INSERT OR UPDATE ON member_pass
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW
+EXECUTE FUNCTION validate_member_pass_balance();
+
+CREATE CONSTRAINT TRIGGER trg_member_pass_history_balance
+AFTER INSERT ON member_pass_history
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW
+EXECUTE FUNCTION validate_member_pass_balance();
