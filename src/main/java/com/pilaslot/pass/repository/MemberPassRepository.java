@@ -4,6 +4,7 @@ import com.pilaslot.pass.domain.MemberPass;
 import com.pilaslot.pass.domain.MemberPassStatus;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -16,6 +17,15 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MemberPassRepository extends JpaRepository<MemberPass, Long> {
+
+    default Optional<MemberPass> findFirstUsableForUpdate(Long memberId, LocalDate classDate) {
+        return findUsableForUpdate(
+                memberId,
+                MemberPassStatus.ACTIVE,
+                classDate,
+                PageRequest.of(0, 1)
+        ).stream().findFirst();
+    }
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))

@@ -33,7 +33,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Optional;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -127,7 +126,10 @@ class ReservationServiceTest {
                 LocalDateTime.of(2026, 8, 17, 0, 0),
                 LocalDateTime.of(2026, 8, 24, 0, 0)
         );
-        inOrder.verify(memberPassRepository).findUsableForUpdate(any(), any(), any(), any());
+        inOrder.verify(memberPassRepository).findFirstUsableForUpdate(
+                MEMBER_ID,
+                DEFAULT_START_AT.toLocalDate()
+        );
         inOrder.verify(reservationRepository).save(any(Reservation.class));
     }
 
@@ -308,6 +310,32 @@ class ReservationServiceTest {
         reservationService.reserve(MEMBER_ID, CLASS_SESSION_ID);
 
         assertThat(classSession.getReservedCount()).isEqualTo(4);
+    }
+
+    @Test
+    void rejectsWhenNoMemberPassIsUsableForClassDate() {
+        ClassSession classSession = defaultClassSession();
+        given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
+        given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
+                MEMBER_ID,
+                CLASS_SESSION_ID,
+                ReservationStatus.RESERVED
+        )).willReturn(false);
+        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.RESERVED,
+                LocalDateTime.of(2026, 8, 17, 0, 0),
+                LocalDateTime.of(2026, 8, 24, 0, 0)
+        )).willReturn(0L);
+        given(memberPassRepository.findFirstUsableForUpdate(
+                MEMBER_ID,
+                DEFAULT_START_AT.toLocalDate()
+        )).willReturn(Optional.empty());
+
+        assertError(ErrorCode.NO_USABLE_MEMBER_PASS);
+        assertThat(classSession.getReservedCount()).isZero();
+        verify(reservationRepository, never()).save(any());
+        verify(memberPassHistoryRepository, never()).save(any());
     }
 
     @Test
@@ -518,8 +546,8 @@ class ReservationServiceTest {
             ReflectionTestUtils.setField(reservation, "id", 55L);
             return reservation;
         });
-        given(memberPassRepository.findUsableForUpdate(any(), any(), any(), any()))
-                .willReturn(List.of(memberPass));
+        given(memberPassRepository.findFirstUsableForUpdate(any(), any()))
+                .willReturn(Optional.of(memberPass));
         given(memberPassHistoryRepository.save(any(MemberPassHistory.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
     }

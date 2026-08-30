@@ -9,7 +9,6 @@ import com.pilaslot.member.domain.Member;
 import com.pilaslot.member.repository.MemberRepository;
 import com.pilaslot.pass.domain.MemberPass;
 import com.pilaslot.pass.domain.MemberPassHistory;
-import com.pilaslot.pass.domain.MemberPassStatus;
 import com.pilaslot.pass.repository.MemberPassHistoryRepository;
 import com.pilaslot.pass.repository.MemberPassRepository;
 import com.pilaslot.reservation.domain.CancellationSource;
@@ -27,7 +26,6 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
-import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -55,13 +53,10 @@ public class ReservationService {
         validateWeeklyLimit(memberId, classSession.getStartAt());
         validateCapacity(classSession);
 
-        MemberPass memberPass = memberPassRepository.findUsableForUpdate(
+        MemberPass memberPass = memberPassRepository.findFirstUsableForUpdate(
                         memberId,
-                        MemberPassStatus.ACTIVE,
-                        classSession.getStartAt().toLocalDate(),
-                        PageRequest.of(0, 1)
-                ).stream()
-                .findFirst()
+                        classSession.getStartAt().toLocalDate()
+                )
                 .orElseThrow(() -> new BusinessException(ErrorCode.NO_USABLE_MEMBER_PASS));
         memberPass.debit();
         Reservation reservation = Reservation.reserve(member, classSession, memberPass, now);
