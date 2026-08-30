@@ -89,9 +89,6 @@ public class ReservationService {
         validateWeeklyCancellationLimit(memberId, classSession.getStartAt());
 
         MemberPass linkedMemberPass = reservation.getMemberPass();
-        if (linkedMemberPass == null) {
-            throw new BusinessException(ErrorCode.RESERVATION_MEMBER_PASS_NOT_ASSIGNED);
-        }
         MemberPass memberPass = memberPassRepository.findByIdForUpdate(linkedMemberPass.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_MEMBER_PASS_NOT_ASSIGNED));
         memberPass.refund();

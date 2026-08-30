@@ -41,8 +41,8 @@ public class Reservation extends BaseTimeEntity {
     @JoinColumn(name = "class_session_id", nullable = false)
     private ClassSession classSession;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "member_pass_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "member_pass_id", nullable = false)
     private MemberPass memberPass;
 
     @Enumerated(EnumType.STRING)
