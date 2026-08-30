@@ -11,6 +11,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -67,6 +68,46 @@ class MemberPassMigrationIntegrationTest {
                 )
         )).rootCause()
                 .hasMessageContaining("member_pass_history is append-only");
+    }
+
+    @Test
+    void appliesReservationContractConstraints() {
+        String memberPassNullable = jdbcTemplate.queryForObject("""
+                SELECT is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'reservation'
+                  AND column_name = 'member_pass_id'
+                """, String.class);
+        String ownershipForeignKey = jdbcTemplate.queryForObject("""
+                SELECT pg_get_constraintdef(oid)
+                FROM pg_constraint
+                WHERE conname = 'fk_reservation_member_pass_member'
+                """, String.class);
+        String cancellationSourceCheck = jdbcTemplate.queryForObject("""
+                SELECT pg_get_constraintdef(oid)
+                FROM pg_constraint
+                WHERE conname = 'ck_reservation_cancellation_source'
+                """, String.class);
+        Integer expandForeignKeyCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM pg_constraint
+                WHERE conname = 'fk_reservation_member_pass_expand'
+                """, Integer.class);
+
+        assertThat(memberPassNullable).isEqualTo("NO");
+        assertThat(ownershipForeignKey)
+                .contains("FOREIGN KEY (member_pass_id, member_id)")
+                .contains("REFERENCES member_pass(id, member_id)");
+        assertThat(cancellationSourceCheck)
+                .contains("status")
+                .contains("cancellation_source")
+                .contains("RESERVED")
+                .contains("CANCELLED")
+                .contains("MEMBER")
+                .contains("ADMIN")
+                .contains("CLASS_SESSION");
+        assertThat(expandForeignKeyCount).isZero();
     }
 
     private Fixture insertValidFixture() {

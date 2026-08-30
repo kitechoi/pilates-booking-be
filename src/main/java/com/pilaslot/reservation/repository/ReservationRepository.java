@@ -31,7 +31,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
             FROM Reservation reservation
             JOIN FETCH reservation.classSession classSession
             JOIN FETCH classSession.instructor
-            LEFT JOIN FETCH reservation.memberPass memberPass
+            JOIN FETCH reservation.memberPass memberPass
             WHERE reservation.member.id = :memberId
               AND classSession.startAt >= :weekStart
               AND classSession.startAt < :weekEnd
@@ -48,7 +48,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
             FROM Reservation reservation
             JOIN FETCH reservation.classSession classSession
             JOIN FETCH classSession.instructor
-            LEFT JOIN FETCH reservation.memberPass memberPass
+            JOIN FETCH reservation.memberPass memberPass
             WHERE reservation.member.id = :memberId
               AND reservation.status = :status
               AND classSession.startAt >= :weekStart

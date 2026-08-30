@@ -93,9 +93,10 @@ class ReservationRepositoryIntegrationTest {
         saveReservation(otherMember, saveClassSession(instructor, WEEK_START.plusDays(3)));
         reservationRepository.flush();
         jdbcTemplate.update(
-                "UPDATE reservation SET status = ?, cancelled_at = ? WHERE id = ?",
+                "UPDATE reservation SET status = ?, cancelled_at = ?, cancellation_source = ? WHERE id = ?",
                 ReservationStatus.CANCELLED.name(),
                 WEEK_START.plusDays(2).plusHours(1),
+                CancellationSource.MEMBER.name(),
                 cancelledReservation.getId()
         );
         entityManager.clear();
@@ -220,10 +221,10 @@ class ReservationRepositoryIntegrationTest {
     }
 
     @Test
-    void loadsNewAndLegacyReservationResponsesWithOneQuery() {
+    void loadsReservationResponsesWithOneQuery() {
         Member member = saveMember("query-count");
         Instructor instructor = instructorRepository.save(new Instructor("조회 강사", null));
-        Reservation first = saveReservation(
+        saveReservation(
                 member,
                 saveClassSession(instructor, WEEK_START.plusDays(1))
         );
@@ -236,10 +237,6 @@ class ReservationRepositoryIntegrationTest {
                 saveClassSession(instructor, WEEK_START.plusDays(3))
         );
         reservationRepository.flush();
-        jdbcTemplate.update(
-                "UPDATE reservation SET member_pass_id = NULL WHERE id = ?",
-                first.getId()
-        );
         entityManager.clear();
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         statistics.clear();
@@ -255,7 +252,7 @@ class ReservationRepositoryIntegrationTest {
 
         assertThat(responses).hasSize(3);
         assertThat(responses).extracting(MyReservationResponse::passProductName)
-                .containsExactly(null, "테스트 30회권", "테스트 30회권");
+                .containsExactly("테스트 30회권", "테스트 30회권", "테스트 30회권");
         assertThat(responses).allSatisfy(response ->
                 assertThat(response.classSession().instructor().name()).isEqualTo("조회 강사")
         );

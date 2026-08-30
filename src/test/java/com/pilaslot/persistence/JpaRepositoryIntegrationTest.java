@@ -12,6 +12,7 @@ import com.pilaslot.pass.domain.MemberPass;
 import com.pilaslot.pass.repository.MemberPassHistoryRepository;
 import com.pilaslot.pass.repository.MemberPassRepository;
 import com.pilaslot.pass.repository.PassProductRepository;
+import com.pilaslot.reservation.domain.CancellationSource;
 import com.pilaslot.reservation.domain.Reservation;
 import com.pilaslot.reservation.domain.ReservationStatus;
 import com.pilaslot.reservation.repository.ReservationRepository;
@@ -165,9 +166,10 @@ class JpaRepositoryIntegrationTest {
                 firstReservedAt
         ));
         jdbcTemplate.update(
-                "UPDATE reservation SET status = ?, cancelled_at = ? WHERE id = ?",
+                "UPDATE reservation SET status = ?, cancelled_at = ?, cancellation_source = ? WHERE id = ?",
                 ReservationStatus.CANCELLED.name(),
                 Timestamp.valueOf(cancelledAt),
+                CancellationSource.MEMBER.name(),
                 cancelledHistory.getId()
         );
         entityManager.clear();
