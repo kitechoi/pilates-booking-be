@@ -15,9 +15,13 @@ import com.pilaslot.pass.repository.PassProductRepository;
 import com.pilaslot.reservation.domain.CancellationSource;
 import com.pilaslot.reservation.domain.Reservation;
 import com.pilaslot.reservation.domain.ReservationStatus;
+import com.pilaslot.reservation.dto.response.MyReservationResponse;
 import com.pilaslot.support.PostgreSqlTestContainerConfiguration;
 import com.pilaslot.support.PersistentPassFixtures;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -33,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Transactional
 @ActiveProfiles("test")
-@SpringBootTest
+@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Import(PostgreSqlTestContainerConfiguration.class)
 class ReservationRepositoryIntegrationTest {
 
@@ -66,6 +70,9 @@ class ReservationRepositoryIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     @Test
     void countsOnlyMembersActiveReservationsInsideClassSessionWeek() {
@@ -210,6 +217,49 @@ class ReservationRepositoryIntegrationTest {
                 .containsExactly(cancelled.getId(), last.getId());
         assertThat(cancelled.getClassSession().getId())
                 .isEqualTo(rebooked.getClassSession().getId());
+    }
+
+    @Test
+    void loadsNewAndLegacyReservationResponsesWithOneQuery() {
+        Member member = saveMember("query-count");
+        Instructor instructor = instructorRepository.save(new Instructor("조회 강사", null));
+        Reservation first = saveReservation(
+                member,
+                saveClassSession(instructor, WEEK_START.plusDays(1))
+        );
+        saveReservation(
+                member,
+                saveClassSession(instructor, WEEK_START.plusDays(2))
+        );
+        saveReservation(
+                member,
+                saveClassSession(instructor, WEEK_START.plusDays(3))
+        );
+        reservationRepository.flush();
+        jdbcTemplate.update(
+                "UPDATE reservation SET member_pass_id = NULL WHERE id = ?",
+                first.getId()
+        );
+        entityManager.clear();
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.clear();
+
+        List<MyReservationResponse> responses = reservationRepository
+                .findAllWithClassSessionAndInstructorByMemberIdAndClassSessionWeek(
+                        member.getId(),
+                        WEEK_START,
+                        WEEK_END
+                ).stream()
+                .map(reservation -> MyReservationResponse.from(reservation, true))
+                .toList();
+
+        assertThat(responses).hasSize(3);
+        assertThat(responses).extracting(MyReservationResponse::passProductName)
+                .containsExactly(null, "테스트 30회권", "테스트 30회권");
+        assertThat(responses).allSatisfy(response ->
+                assertThat(response.classSession().instructor().name()).isEqualTo("조회 강사")
+        );
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
     }
 
     @Test

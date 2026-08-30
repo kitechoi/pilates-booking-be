@@ -4,7 +4,12 @@ import com.pilaslot.member.domain.Member;
 import com.pilaslot.member.repository.MemberRepository;
 import com.pilaslot.pass.domain.MemberPass;
 import com.pilaslot.pass.domain.PassProduct;
+import com.pilaslot.pass.service.MemberPassQueryService;
 import com.pilaslot.support.PostgreSqlTestContainerConfiguration;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Transactional
 @ActiveProfiles("test")
-@SpringBootTest
+@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Import(PostgreSqlTestContainerConfiguration.class)
 class MemberPassRepositoryIntegrationTest {
 
@@ -30,6 +35,9 @@ class MemberPassRepositoryIntegrationTest {
     @Autowired private MemberRepository memberRepository;
     @Autowired private PassProductRepository passProductRepository;
     @Autowired private MemberPassRepository memberPassRepository;
+    @Autowired private MemberPassQueryService memberPassQueryService;
+    @Autowired private EntityManager entityManager;
+    @Autowired private EntityManagerFactory entityManagerFactory;
 
     private Member member;
     private PassProduct product;
@@ -110,6 +118,27 @@ class MemberPassRepositoryIntegrationTest {
         );
 
         assertThat(selected).isEmpty();
+    }
+
+    @Test
+    void loadsMemberPassResponsesWithOneQuery() {
+        issue(CLASS_DATE.minusDays(10), CLASS_DATE.plusDays(10));
+        issue(CLASS_DATE.minusDays(5), CLASS_DATE.plusDays(20));
+        entityManager.clear();
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.clear();
+
+        var response = memberPassQueryService.getMyPasses(
+                member.getId(),
+                CLASS_DATE,
+                true
+        );
+
+        assertThat(response.memberPasses()).hasSize(2);
+        assertThat(response.memberPasses())
+                .extracting(memberPass -> memberPass.productName())
+                .containsOnly("만료 임박 우선 상품");
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
     }
 
     private MemberPass issue(LocalDate validFrom, LocalDate expiresOn) {

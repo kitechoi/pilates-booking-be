@@ -41,8 +41,6 @@ public class Reservation extends BaseTimeEntity {
     @JoinColumn(name = "class_session_id", nullable = false)
     private ClassSession classSession;
 
-    // Expand/Contract 배포 중 구버전 롤백 호환을 위해 매핑은 임시 nullable이다.
-    // 신규 예약 생성 경로는 아래 팩토리에서 MemberPass를 필수로 요구한다.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_pass_id")
     private MemberPass memberPass;
