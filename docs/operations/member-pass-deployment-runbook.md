@@ -19,7 +19,7 @@
 - 예약–회원 수강권 복합 FK
 - 예약 상태–`cancellation_source` 연동 CHECK
 
-배포 후 새 컨테이너와 실제 도메인의 health가 모두 `UP`인지 확인하고, Flyway V3 성공 여부와 배포 전후 예약 집계가 같은지 비교한다. 기존 애플리케이션으로 통제된 예약 생성·취소 smoke test를 수행하고 해당 예약 ID를 이후 백필 대상에 포함한다.
+배포 후 새 컨테이너와 실제 도메인의 health가 모두 `UP`인지 확인하고, [`member-pass-expand-verification.sql`](member-pass-expand-verification.sql)로 Flyway V3, 신규 테이블·트리거, 회원·수강권·예약 건수를 확인한다. 기존 애플리케이션으로 통제된 예약 생성·취소 smoke test를 수행하고 해당 예약 ID를 이후 백필 대상에 포함한다.
 
 ## 3. 예약 쓰기 프리즈와 백필
 
