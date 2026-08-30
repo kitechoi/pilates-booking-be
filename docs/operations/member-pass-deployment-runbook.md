@@ -7,15 +7,19 @@
 - `main` 머지를 중단한다.
 - `production` concurrency group의 실행·대기 workflow가 0건인지 확인한다.
 - 운영 DB를 백업한다.
-- 기존 예약 수와 상태별 건수, 직접 SQL 취소 이력을 확인한다.
+- [`member-pass-preflight.sql`](member-pass-preflight.sql)을 실행해 기존 예약 수, 상태별 건수, 예약 정합성, 현재 Flyway 버전을 확인한다.
+- 집계 결과와 이상 건수는 Expand PR에 기록하고, 취소 예약 ID와 직접 SQL 취소 이력은 비공개 Notion 배포 기록에 남긴다.
+- 조회 시각, 대상 환경, 배포 예정 커밋 SHA, 실행자, 진행·중단 판정을 함께 기록한다.
 
 ## 2. Expand
 
-`V3__expand_member_pass_domain.sql`만 먼저 적용한다. 신규 테이블과 nullable 예약 컬럼은 구버전과 호환된다. 이 단계에는 다음 Contract 제약을 적용하지 않는다.
+`V3__expand_member_pass_domain.sql`만 먼저 적용한다. `main` 병합은 자동 프로덕션 배포를 시작하고, 새 컨테이너가 기동하면서 Flyway가 V3를 적용한다. 신규 테이블과 nullable 예약 컬럼은 구버전과 호환된다. 이 단계에는 다음 Contract 제약을 적용하지 않는다.
 
 - `reservation.member_pass_id NOT NULL`
 - 예약–회원 수강권 복합 FK
 - 예약 상태–`cancellation_source` 연동 CHECK
+
+배포 후 새 컨테이너와 실제 도메인의 health가 모두 `UP`인지 확인하고, Flyway V3 성공 여부와 배포 전후 예약 집계가 같은지 비교한다. 기존 애플리케이션으로 통제된 예약 생성·취소 smoke test를 수행하고 해당 예약 ID를 이후 백필 대상에 포함한다.
 
 ## 3. 예약 쓰기 프리즈와 백필
 
