@@ -8,10 +8,16 @@ import com.pilaslot.instructor.domain.Instructor;
 import com.pilaslot.instructor.repository.InstructorRepository;
 import com.pilaslot.member.domain.Member;
 import com.pilaslot.member.repository.MemberRepository;
+import com.pilaslot.pass.domain.MemberPass;
+import com.pilaslot.pass.repository.MemberPassHistoryRepository;
+import com.pilaslot.pass.repository.MemberPassRepository;
+import com.pilaslot.pass.repository.PassProductRepository;
+import com.pilaslot.reservation.domain.CancellationSource;
 import com.pilaslot.reservation.domain.Reservation;
 import com.pilaslot.reservation.domain.ReservationStatus;
 import com.pilaslot.reservation.repository.ReservationRepository;
 import com.pilaslot.support.PostgreSqlTestContainerConfiguration;
+import com.pilaslot.support.PersistentPassFixtures;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,6 +67,15 @@ class JpaRepositoryIntegrationTest {
     private ReservationRepository reservationRepository;
 
     @Autowired
+    private PassProductRepository passProductRepository;
+
+    @Autowired
+    private MemberPassRepository memberPassRepository;
+
+    @Autowired
+    private MemberPassHistoryRepository memberPassHistoryRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     @Autowired
@@ -80,6 +95,7 @@ class JpaRepositoryIntegrationTest {
         Reservation saved = reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
+                fixture.memberPass(),
                 reservedAt
         ));
 
@@ -125,12 +141,14 @@ class JpaRepositoryIntegrationTest {
         reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
+                fixture.memberPass(),
                 reservedAt
         ));
 
         assertThatThrownBy(() -> reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
+                fixture.memberPass(),
                 reservedAt.plusMinutes(1)
         ))).isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -144,12 +162,14 @@ class JpaRepositoryIntegrationTest {
         Reservation cancelledHistory = reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
+                fixture.memberPass(),
                 firstReservedAt
         ));
         jdbcTemplate.update(
-                "UPDATE reservation SET status = ?, cancelled_at = ? WHERE id = ?",
+                "UPDATE reservation SET status = ?, cancelled_at = ?, cancellation_source = ? WHERE id = ?",
                 ReservationStatus.CANCELLED.name(),
                 Timestamp.valueOf(cancelledAt),
+                CancellationSource.MEMBER.name(),
                 cancelledHistory.getId()
         );
         entityManager.clear();
@@ -157,6 +177,7 @@ class JpaRepositoryIntegrationTest {
         Reservation newActiveReservation = reservationRepository.saveAndFlush(Reservation.reserve(
                 fixture.member(),
                 fixture.classSession(),
+                fixture.memberPass(),
                 CLASS_START_AT.minusDays(1)
         ));
 
@@ -187,9 +208,16 @@ class JpaRepositoryIntegrationTest {
                 4,
                 ClassSessionStatus.SCHEDULED
         ));
-        return new TestFixture(member, classSession);
+        MemberPass memberPass = PersistentPassFixtures.issue(
+                member,
+                classSession.getStartAt().toLocalDate(),
+                passProductRepository,
+                memberPassRepository,
+                memberPassHistoryRepository
+        );
+        return new TestFixture(member, classSession, memberPass);
     }
 
-    private record TestFixture(Member member, ClassSession classSession) {
+    private record TestFixture(Member member, ClassSession classSession, MemberPass memberPass) {
     }
 }

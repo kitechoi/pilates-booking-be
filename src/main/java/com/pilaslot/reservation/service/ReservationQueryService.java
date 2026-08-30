@@ -5,6 +5,7 @@ import com.pilaslot.global.exception.ErrorCode;
 import com.pilaslot.reservation.domain.Reservation;
 import com.pilaslot.reservation.domain.ReservationPolicy;
 import com.pilaslot.reservation.domain.ReservationStatus;
+import com.pilaslot.reservation.domain.CancellationSource;
 import com.pilaslot.reservation.dto.response.MyReservationListResponse;
 import com.pilaslot.reservation.dto.response.MyReservationResponse;
 import com.pilaslot.reservation.repository.ReservationRepository;
@@ -36,9 +37,10 @@ public class ReservationQueryService {
         LocalDateTime rangeEnd = weekStart.plusWeeks(1).atStartOfDay();
         LocalDateTime now = LocalDateTime.now(clock);
         long weeklyCancellationCount =
-                reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                reservationRepository.countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                         memberId,
                         ReservationStatus.CANCELLED,
+                        CancellationSource.MEMBER,
                         rangeStart,
                         rangeEnd
                 );
