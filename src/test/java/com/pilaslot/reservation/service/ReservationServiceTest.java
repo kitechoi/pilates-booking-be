@@ -9,10 +9,16 @@ import com.pilaslot.global.exception.ErrorCode;
 import com.pilaslot.instructor.domain.Instructor;
 import com.pilaslot.member.domain.Member;
 import com.pilaslot.member.repository.MemberRepository;
+import com.pilaslot.pass.domain.MemberPass;
+import com.pilaslot.pass.domain.MemberPassHistory;
+import com.pilaslot.pass.repository.MemberPassHistoryRepository;
+import com.pilaslot.pass.repository.MemberPassRepository;
+import com.pilaslot.reservation.domain.CancellationSource;
 import com.pilaslot.reservation.domain.Reservation;
 import com.pilaslot.reservation.domain.ReservationStatus;
 import com.pilaslot.reservation.dto.response.ReservationCreateResponse;
 import com.pilaslot.reservation.repository.ReservationRepository;
+import com.pilaslot.support.PassFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -55,7 +62,14 @@ class ReservationServiceTest {
     @Mock
     private ReservationRepository reservationRepository;
 
+    @Mock
+    private MemberPassRepository memberPassRepository;
+
+    @Mock
+    private MemberPassHistoryRepository memberPassHistoryRepository;
+
     private Member member;
+    private MemberPass memberPass;
     private ReservationService reservationService;
 
     @BeforeEach
@@ -65,10 +79,14 @@ class ReservationServiceTest {
                 classSessionRepository,
                 memberRepository,
                 reservationRepository,
+                memberPassRepository,
+                memberPassHistoryRepository,
                 clock
         );
         member = new Member("1234", "encoded-password", "홍길동", "010-1234-5678");
         ReflectionTestUtils.setField(member, "id", MEMBER_ID);
+        memberPass = PassFixtures.memberPass(member, DEFAULT_START_AT.toLocalDate());
+        lenient().when(memberRepository.findByIdForUpdate(MEMBER_ID)).thenReturn(Optional.of(member));
     }
 
     @Test
@@ -92,10 +110,11 @@ class ReservationServiceTest {
         InOrder inOrder = inOrder(
                 classSessionRepository,
                 reservationRepository,
-                memberRepository
+                memberRepository,
+                memberPassRepository
         );
+        inOrder.verify(memberRepository).findByIdForUpdate(MEMBER_ID);
         inOrder.verify(classSessionRepository).findByIdForUpdate(CLASS_SESSION_ID);
-        inOrder.verify(memberRepository).findById(MEMBER_ID);
         inOrder.verify(reservationRepository).existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
                 CLASS_SESSION_ID,
@@ -106,6 +125,10 @@ class ReservationServiceTest {
                 ReservationStatus.RESERVED,
                 LocalDateTime.of(2026, 8, 17, 0, 0),
                 LocalDateTime.of(2026, 8, 24, 0, 0)
+        );
+        inOrder.verify(memberPassRepository).findFirstUsableForUpdate(
+                MEMBER_ID,
+                DEFAULT_START_AT.toLocalDate()
         );
         inOrder.verify(reservationRepository).save(any(Reservation.class));
     }
@@ -192,7 +215,7 @@ class ReservationServiceTest {
     void rejectsDuplicateActiveReservation() {
         ClassSession classSession = defaultClassSession();
         given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
-        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(memberRepository.findByIdForUpdate(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
                 CLASS_SESSION_ID,
@@ -221,7 +244,7 @@ class ReservationServiceTest {
     void rejectsWhenWeeklyActiveReservationCountIsFourteen() {
         ClassSession classSession = defaultClassSession();
         given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
-        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(memberRepository.findByIdForUpdate(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
                 CLASS_SESSION_ID,
@@ -257,7 +280,7 @@ class ReservationServiceTest {
                 ClassSessionStatus.SCHEDULED
         );
         given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
-        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(memberRepository.findByIdForUpdate(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
                 MEMBER_ID,
                 CLASS_SESSION_ID,
@@ -290,10 +313,34 @@ class ReservationServiceTest {
     }
 
     @Test
-    void rejectsWhenAuthenticatedMemberNoLongerExists() {
+    void rejectsWhenNoMemberPassIsUsableForClassDate() {
         ClassSession classSession = defaultClassSession();
         given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID)).willReturn(Optional.of(classSession));
-        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+        given(reservationRepository.existsByMemberIdAndClassSessionIdAndStatus(
+                MEMBER_ID,
+                CLASS_SESSION_ID,
+                ReservationStatus.RESERVED
+        )).willReturn(false);
+        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+                MEMBER_ID,
+                ReservationStatus.RESERVED,
+                LocalDateTime.of(2026, 8, 17, 0, 0),
+                LocalDateTime.of(2026, 8, 24, 0, 0)
+        )).willReturn(0L);
+        given(memberPassRepository.findFirstUsableForUpdate(
+                MEMBER_ID,
+                DEFAULT_START_AT.toLocalDate()
+        )).willReturn(Optional.empty());
+
+        assertError(ErrorCode.NO_USABLE_MEMBER_PASS);
+        assertThat(classSession.getReservedCount()).isZero();
+        verify(reservationRepository, never()).save(any());
+        verify(memberPassHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsWhenAuthenticatedMemberNoLongerExists() {
+        given(memberRepository.findByIdForUpdate(MEMBER_ID)).willReturn(Optional.empty());
 
         assertError(ErrorCode.UNAUTHORIZED);
         verify(reservationRepository, never()).existsByMemberIdAndClassSessionIdAndStatus(
@@ -315,6 +362,7 @@ class ReservationServiceTest {
         LocalDateTime reservedAt = NOW.minusDays(1);
         ClassSession classSession = cancellableClassSession(DEFAULT_START_AT);
         Reservation reservation = reservation(member, classSession, reservedAt);
+        MemberPass reservationPass = reservation.getMemberPass();
         prepareSuccessfulCancellation(reservation, 0);
 
         reservationService.cancel(MEMBER_ID, RESERVATION_ID);
@@ -323,6 +371,8 @@ class ReservationServiceTest {
         assertThat(reservation.getCancelledAt()).isEqualTo(NOW);
         assertThat(reservation.getReservedAt()).isEqualTo(reservedAt);
         assertThat(classSession.getReservedCount()).isZero();
+        assertThat(reservationPass.getRemainingCount()).isEqualTo(reservationPass.getInitialCount());
+        verify(memberPassRepository).findByIdForUpdate(reservationPass.getId());
         verify(reservationRepository, never()).save(any());
         InOrder inOrder = inOrder(reservationRepository, classSessionRepository);
         inOrder.verify(reservationRepository).findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID);
@@ -359,7 +409,7 @@ class ReservationServiceTest {
                 cancellableClassSession(DEFAULT_START_AT),
                 NOW.minusDays(1)
         );
-        reservation.cancel(NOW.minusHours(1));
+        reservation.cancel(NOW.minusHours(1), CancellationSource.MEMBER);
         given(reservationRepository.findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
                 .willReturn(Optional.of(CLASS_SESSION_ID));
         given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID))
@@ -374,6 +424,21 @@ class ReservationServiceTest {
                 any(),
                 any()
         );
+    }
+
+    @Test
+    void rejectsCancellationWhenMemberPassIsNotAssigned() {
+        Reservation reservation = reservation(
+                member,
+                cancellableClassSession(DEFAULT_START_AT),
+                NOW.minusDays(1)
+        );
+        ReflectionTestUtils.setField(reservation, "memberPass", null);
+        prepareSuccessfulCancellation(reservation, 0);
+
+        assertCancelError(ErrorCode.RESERVATION_MEMBER_PASS_NOT_ASSIGNED);
+        assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RESERVED);
+        verify(memberPassHistoryRepository, never()).save(any());
     }
 
     @Test
@@ -450,9 +515,10 @@ class ReservationServiceTest {
 
         reservationService.cancel(MEMBER_ID, RESERVATION_ID);
 
-        verify(reservationRepository).countByMemberAndStatusInClassSessionWeek(
+        verify(reservationRepository).countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                 MEMBER_ID,
                 ReservationStatus.CANCELLED,
+                CancellationSource.MEMBER,
                 LocalDateTime.of(2026, 8, 24, 0, 0),
                 LocalDateTime.of(2026, 8, 31, 0, 0)
         );
@@ -474,17 +540,22 @@ class ReservationServiceTest {
                 weekStart,
                 weekStart.plusWeeks(1)
         )).willReturn(weeklyCount);
-        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(memberRepository.findByIdForUpdate(MEMBER_ID)).willReturn(Optional.of(member));
         given(reservationRepository.save(any(Reservation.class))).willAnswer(invocation -> {
             Reservation reservation = invocation.getArgument(0);
             ReflectionTestUtils.setField(reservation, "id", 55L);
             return reservation;
         });
+        given(memberPassRepository.findFirstUsableForUpdate(any(), any()))
+                .willReturn(Optional.of(memberPass));
+        given(memberPassHistoryRepository.save(any(MemberPassHistory.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
     }
 
     private void prepareSuccessfulCancellation(Reservation reservation, long weeklyCount) {
         given(reservationRepository.findClassSessionIdByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
                 .willReturn(Optional.of(CLASS_SESSION_ID));
+        given(memberRepository.findByIdForUpdate(MEMBER_ID)).willReturn(Optional.of(member));
         given(classSessionRepository.findByIdForUpdate(CLASS_SESSION_ID))
                 .willReturn(Optional.of(reservation.getClassSession()));
         given(reservationRepository.findByIdAndMemberId(RESERVATION_ID, MEMBER_ID))
@@ -492,12 +563,17 @@ class ReservationServiceTest {
         LocalDateTime weekStart = reservation.getClassSession().getStartAt().toLocalDate()
                 .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                 .atStartOfDay();
-        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+        given(reservationRepository.countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                 MEMBER_ID,
                 ReservationStatus.CANCELLED,
+                CancellationSource.MEMBER,
                 weekStart,
                 weekStart.plusWeeks(1)
         )).willReturn(weeklyCount);
+        if (reservation.getMemberPass() != null) {
+            lenient().when(memberPassRepository.findByIdForUpdate(reservation.getMemberPass().getId()))
+                    .thenReturn(Optional.of(reservation.getMemberPass()));
+        }
     }
 
     private Reservation reservation(
@@ -505,9 +581,15 @@ class ReservationServiceTest {
             ClassSession classSession,
             LocalDateTime reservedAt
     ) {
+        MemberPass reservationPass = PassFixtures.memberPass(
+                reservationMember,
+                classSession.getStartAt().toLocalDate()
+        );
+        reservationPass.debit();
         Reservation reservation = Reservation.reserve(
                 reservationMember,
                 classSession,
+                reservationPass,
                 reservedAt
         );
         ReflectionTestUtils.setField(reservation, "id", RESERVATION_ID);

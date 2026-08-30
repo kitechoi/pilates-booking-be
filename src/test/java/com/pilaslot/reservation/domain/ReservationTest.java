@@ -5,6 +5,9 @@ import com.pilaslot.classsession.domain.ClassSessionStatus;
 import com.pilaslot.classsession.domain.ClassType;
 import com.pilaslot.instructor.domain.Instructor;
 import com.pilaslot.member.domain.Member;
+import com.pilaslot.pass.domain.MemberPass;
+import com.pilaslot.reservation.domain.CancellationSource;
+import com.pilaslot.support.PassFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -28,7 +31,8 @@ class ReservationTest {
         );
         LocalDateTime reservedAt = LocalDateTime.of(2026, 8, 16, 10, 0);
 
-        Reservation reservation = Reservation.reserve(member, classSession, reservedAt);
+        MemberPass memberPass = PassFixtures.memberPass(member, classSession.getStartAt().toLocalDate());
+        Reservation reservation = Reservation.reserve(member, classSession, memberPass, reservedAt);
 
         assertThat(reservation.getMember()).isSameAs(member);
         assertThat(reservation.getClassSession()).isSameAs(classSession);
@@ -51,9 +55,10 @@ class ReservationTest {
         );
         LocalDateTime reservedAt = LocalDateTime.of(2026, 8, 16, 10, 0);
         LocalDateTime cancelledAt = LocalDateTime.of(2026, 8, 19, 13, 0);
-        Reservation reservation = Reservation.reserve(member, classSession, reservedAt);
+        MemberPass memberPass = PassFixtures.memberPass(member, classSession.getStartAt().toLocalDate());
+        Reservation reservation = Reservation.reserve(member, classSession, memberPass, reservedAt);
 
-        reservation.cancel(cancelledAt);
+        reservation.cancel(cancelledAt, CancellationSource.MEMBER);
 
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
         assertThat(reservation.getCancelledAt()).isEqualTo(cancelledAt);
@@ -110,7 +115,7 @@ class ReservationTest {
         Reservation reservation = reservationStartingAt(
                 LocalDateTime.of(2026, 8, 22, 13, 0)
         );
-        reservation.cancel(LocalDateTime.of(2026, 8, 21, 10, 0));
+        reservation.cancel(LocalDateTime.of(2026, 8, 21, 10, 0), CancellationSource.MEMBER);
 
         assertThat(reservation.isCancellableAt(
                 LocalDateTime.of(2026, 8, 22, 4, 0)
@@ -133,6 +138,11 @@ class ReservationTest {
                 4,
                 ClassSessionStatus.SCHEDULED
         );
-        return Reservation.reserve(member, classSession, startAt.minusDays(1));
+        return Reservation.reserve(
+                member,
+                classSession,
+                PassFixtures.memberPass(member, startAt.toLocalDate()),
+                startAt.minusDays(1)
+        );
     }
 }

@@ -15,6 +15,8 @@ public record MyReservationResponse(
         LocalDateTime cancelledAt,
         boolean cancellable,
         LocalDateTime cancellationDeadline,
+        Long memberPassId,
+        String passProductName,
         ClassSessionSummary classSession
 ) {
 
@@ -29,6 +31,8 @@ public record MyReservationResponse(
                 reservation.getCancelledAt(),
                 cancellable,
                 reservation.getCancellationDeadline(),
+                reservation.getMemberPass() == null ? null : reservation.getMemberPass().getId(),
+                reservation.getMemberPass() == null ? null : reservation.getMemberPass().getProductNameSnapshot(),
                 ClassSessionSummary.from(reservation.getClassSession())
         );
     }

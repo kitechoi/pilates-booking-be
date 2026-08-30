@@ -9,6 +9,8 @@ import com.pilaslot.instructor.domain.Instructor;
 import com.pilaslot.member.domain.Member;
 import com.pilaslot.reservation.domain.Reservation;
 import com.pilaslot.reservation.domain.ReservationStatus;
+import com.pilaslot.reservation.domain.CancellationSource;
+import com.pilaslot.support.PassFixtures;
 import com.pilaslot.reservation.dto.response.MyReservationListResponse;
 import com.pilaslot.reservation.dto.response.MyReservationResponse;
 import com.pilaslot.reservation.repository.ReservationRepository;
@@ -63,9 +65,10 @@ class ReservationQueryServiceTest {
                         RANGE_START,
                         RANGE_END
                 )).willReturn(List.of(cancelled, reserved));
-        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+        given(reservationRepository.countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                 MEMBER_ID,
                 ReservationStatus.CANCELLED,
+                CancellationSource.MEMBER,
                 RANGE_START,
                 RANGE_END
         )).willReturn(6L);
@@ -89,9 +92,10 @@ class ReservationQueryServiceTest {
         assertThat(response.reservations())
                 .extracting(MyReservationResponse::cancellationDeadline)
                 .containsOnly(LocalDateTime.of(2026, 8, 21, 7, 0));
-        verify(reservationRepository, times(1)).countByMemberAndStatusInClassSessionWeek(
+        verify(reservationRepository, times(1)).countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                 MEMBER_ID,
                 ReservationStatus.CANCELLED,
+                CancellationSource.MEMBER,
                 RANGE_START,
                 RANGE_END
         );
@@ -174,9 +178,10 @@ class ReservationQueryServiceTest {
                         RANGE_START,
                         RANGE_END
                 )).willReturn(List.of(reserved));
-        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+        given(reservationRepository.countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                 MEMBER_ID,
                 ReservationStatus.CANCELLED,
+                CancellationSource.MEMBER,
                 RANGE_START,
                 RANGE_END
         )).willReturn(6L);
@@ -190,9 +195,10 @@ class ReservationQueryServiceTest {
         assertThat(response.reservations()).singleElement()
                 .extracting(MyReservationResponse::cancellable)
                 .isEqualTo(true);
-        verify(reservationRepository, times(1)).countByMemberAndStatusInClassSessionWeek(
+        verify(reservationRepository, times(1)).countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                 MEMBER_ID,
                 ReservationStatus.CANCELLED,
+                CancellationSource.MEMBER,
                 RANGE_START,
                 RANGE_END
         );
@@ -209,9 +215,10 @@ class ReservationQueryServiceTest {
                         RANGE_START,
                         RANGE_END
                 )).willReturn(List.of(reserved, cancelled));
-        given(reservationRepository.countByMemberAndStatusInClassSessionWeek(
+        given(reservationRepository.countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                 MEMBER_ID,
                 ReservationStatus.CANCELLED,
+                CancellationSource.MEMBER,
                 RANGE_START,
                 RANGE_END
         )).willReturn(7L);
@@ -225,9 +232,10 @@ class ReservationQueryServiceTest {
         assertThat(response.reservations())
                 .extracting(MyReservationResponse::cancellable)
                 .containsExactly(false, false);
-        verify(reservationRepository, times(1)).countByMemberAndStatusInClassSessionWeek(
+        verify(reservationRepository, times(1)).countByMemberAndStatusAndCancellationSourceInClassSessionWeek(
                 MEMBER_ID,
                 ReservationStatus.CANCELLED,
+                CancellationSource.MEMBER,
                 RANGE_START,
                 RANGE_END
         );
@@ -265,10 +273,15 @@ class ReservationQueryServiceTest {
     ) {
         Member member = new Member("member", "encoded-password", "회원", "010-0000-0000");
         ReflectionTestUtils.setField(member, "id", MEMBER_ID);
-        Reservation reservation = Reservation.reserve(member, classSession, NOW.minusDays(1));
+        Reservation reservation = Reservation.reserve(
+                member,
+                classSession,
+                PassFixtures.memberPass(member, classSession.getStartAt().toLocalDate()),
+                NOW.minusDays(1)
+        );
         ReflectionTestUtils.setField(reservation, "id", reservationId);
         if (status == ReservationStatus.CANCELLED) {
-            reservation.cancel(NOW.minusHours(1));
+            reservation.cancel(NOW.minusHours(1), CancellationSource.MEMBER);
         }
         return reservation;
     }

@@ -85,6 +85,9 @@ class ReservationControllerTest {
         given(reservationService.reserve(42L, 10L)).willReturn(new ReservationCreateResponse(
                 55L,
                 10L,
+                200L,
+                "테스트 30회권",
+                29,
                 ReservationStatus.RESERVED,
                 RESERVED_AT
         ));
@@ -343,6 +346,8 @@ class ReservationControllerTest {
                 null,
                 true,
                 LocalDateTime.of(2026, 8, 17, 11, 0),
+                200L,
+                "테스트 30회권",
                 classSession
         );
         return new MyReservationListResponse(WEEK_START, List.of(reservation));
