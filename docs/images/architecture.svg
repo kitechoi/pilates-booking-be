@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg viewBox="0 0 1500 1040" role="img" aria-label="PilaSlot 현재 배포 아키텍처: GitHub Actions가 ECR에 이미지를 올리고 EC2에 SSM으로 블루/그린 무중단 배포하며, 브라우저는 Vercel을 거쳐 EC2의 Caddy가 활성 색상(app-blue/app-green) 컨테이너로 리버스 프록시하고 RDS로 요청을 전달한다">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1040" role="img" aria-label="PilaSlot 현재 배포 아키텍처: GitHub Actions가 ECR에 이미지를 올리고 EC2에 SSM으로 블루/그린 무중단 배포하며, 브라우저는 Vercel을 거쳐 EC2의 Caddy가 활성 색상(app-blue/app-green) 컨테이너로 리버스 프록시하고 RDS로 요청을 전달한다">
   <defs>
     <marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#C1440E"/>

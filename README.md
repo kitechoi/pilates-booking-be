@@ -4,7 +4,7 @@
 
 ### 동시 예약에도 안전한 필라테스 수업 예약 백엔드
 
-[![pilaslot.xyz](https://img.shields.io/badge/🔗_Live-pilaslot.xyz-E75480?style=flat-square)](https://pilaslot.xyz)
+🔗 **[pilaslot.xyz](https://pilaslot.xyz)**
 
 [서비스 체험](https://pilaslot.xyz) ·
 [Swagger API](https://api.pilaslot.xyz/swagger-ui/index.html) ·
@@ -18,7 +18,8 @@
 
 </div>
 
-실제 필라테스 스튜디오의 수업 일정과 수강권 정책을 반영한 예약 서비스입니다. 동시 요청에서도 수업 정원, 회원별 주간 제한, 수강권 잔여 횟수의 정합성을 유지하도록 설계하고 PostgreSQL 동시성 테스트로 검증했습니다.
+> [!TIP]
+> 실제 필라테스 스튜디오의 수업 일정과 수강권 정책을 반영한 예약 서비스입니다. 동시 요청에서도 수업 정원, 회원별 주간 제한, 수강권 잔여 횟수의 정합성을 유지하도록 설계하고 PostgreSQL 동시성 테스트로 검증했습니다.
 
 ## 🎬 Service Preview
 
@@ -46,7 +47,8 @@ Transaction B: reserved_count 3 조회 ─────────────�
 reserved_count 컬럼:   4   ← 불일치
 ```
 
-**해결**: 회원 → 수업 → 수강권 순서로 비관적 락(Pessimistic Lock)을 획득해, 정원 검증과 예약 생성, 수강권 차감, 변경 이력 기록이 하나의 트랜잭션 안에서 순서대로 처리되도록 했습니다.
+> [!IMPORTANT]
+> **해결**: 회원 → 수업 → 수강권 순서로 비관적 락(Pessimistic Lock)을 획득해, 정원 검증과 예약 생성, 수강권 차감, 변경 이력 기록이 하나의 트랜잭션 안에서 순서대로 처리되도록 했습니다.
 
 ```
 Member Lock (주간 제한 검증)
@@ -58,7 +60,6 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 예약 · 이력 저장
 ```
 
-> [!IMPORTANT]
 > **JPA Lock Insight** — 취소 처리에서 예약을 먼저 조회하면 연관된 `ClassSession`이 영속성 컨텍스트에 적재됩니다. 이후 비관적 락 쿼리를 실행해도 같은 엔티티 인스턴스가 재사용될 수 있어, DB의 최신 상태로 자동 갱신된다고 가정할 수 없습니다.
 >
 > 이를 피하기 위해 수업 ID만 projection으로 먼저 조회한 뒤 `ClassSession`을 잠그고, 그 다음 예약을 조회하도록 순서를 변경했습니다.
@@ -83,7 +84,7 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 
 ## 🏗️ Architecture
 
-![PilaSlot 아키텍처](docs/images/architecture.svg)
+![PilaSlot 아키텍처](docs/images/archi.png)
 
 1. GitHub Actions가 테스트를 통과한 이미지를 ECR에 게시합니다.
 2. AWS Systems Manager(SSM)로 EC2에 새 Blue/Green 컨테이너를 기동합니다.
@@ -158,8 +159,7 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 |---|---|
 | `1234` | `1234` |
 
-> [!NOTE]
-> 30회 수강권을 보유한 계정이며, 다른 방문자와 예약 · 잔여 횟수를 공유합니다.
+30회 수강권을 보유한 계정이며, 다른 방문자와 예약 · 잔여 횟수를 공유합니다.
 
 </details>
 
@@ -201,9 +201,7 @@ docker compose up --build
 - 운영 데이터의 영속성 · 자동 백업 · 애플리케이션과의 장애 격리를 위해 PostgreSQL은 RDS에서 운영합니다.
 - 스키마는 Flyway 마이그레이션으로 관리합니다.
 - 운영 초기 데이터(강사, 클래스 세션 등)는 [검토된 bootstrap SQL](docs/operations/production-bootstrap-template.md)로 수동 입력합니다. 애플리케이션 시작 시 자동으로 삽입하지 않습니다.
-
-> [!NOTE]
-> 민감정보(DB 비밀번호, JWT 시크릿)는 AWS SSM Parameter Store에 저장하고 배포 시점에 EC2가 직접 조회합니다. GitHub Secrets나 커맨드 로그에는 노출되지 않습니다.
+- 민감정보(DB 비밀번호, JWT 시크릿)는 AWS SSM Parameter Store에 저장하고 배포 시점에 EC2가 직접 조회합니다. GitHub Secrets나 커맨드 로그에는 노출되지 않습니다.
 
 ## 📬 Contact
 
