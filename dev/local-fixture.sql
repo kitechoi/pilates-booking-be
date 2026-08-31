@@ -10,11 +10,11 @@ ON CONFLICT (member_number) DO NOTHING;
 
 INSERT INTO pass_product (
     code, name, default_price, default_count, default_validity_days,
-    active, created_at, updated_at
+    status, created_at, updated_at
 )
 VALUES (
     'PILATES_30_90D', '필라테스 30회권', 600000, 30, 90,
-    TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 )
 ON CONFLICT (code) DO NOTHING;
 

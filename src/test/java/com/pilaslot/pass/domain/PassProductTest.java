@@ -22,7 +22,7 @@ class PassProductTest {
         assertThat(product.getDefaultPrice()).isEqualTo(600000);
         assertThat(product.getDefaultCount()).isEqualTo(30);
         assertThat(product.getDefaultValidityDays()).isEqualTo(90);
-        assertThat(product.isActive()).isTrue();
+        assertThat(product.getStatus()).isEqualTo(PassProductStatus.ACTIVE);
     }
 
     @Test

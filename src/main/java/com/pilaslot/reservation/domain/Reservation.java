@@ -27,8 +27,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Reservation extends BaseTimeEntity {
 
-    private static final int CANCELLATION_DEADLINE_HOURS = 8;
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -110,7 +108,7 @@ public class Reservation extends BaseTimeEntity {
     }
 
     public LocalDateTime getCancellationDeadline() {
-        return classSession.getStartAt().minusHours(CANCELLATION_DEADLINE_HOURS);
+        return classSession.getCancellationDeadline();
     }
 
     public boolean isCancellableAt(LocalDateTime now) {

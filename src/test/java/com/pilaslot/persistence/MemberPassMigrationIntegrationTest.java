@@ -204,8 +204,8 @@ class MemberPassMigrationIntegrationTest {
         Long passProductId = jdbcTemplate.queryForObject("""
                 INSERT INTO pass_product (
                     code, name, default_price, default_count, default_validity_days,
-                    active, created_at, updated_at
-                ) VALUES (?, '10회권', 100000, 10, 30, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    status, created_at, updated_at
+                ) VALUES (?, '10회권', 100000, 10, 30, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 RETURNING id
                 """, Long.class, "PASS-" + suffix);
         return jdbcTemplate.queryForObject("""

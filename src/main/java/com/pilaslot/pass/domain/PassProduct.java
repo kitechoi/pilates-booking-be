@@ -3,6 +3,8 @@ package com.pilaslot.pass.domain;
 import com.pilaslot.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -36,8 +38,9 @@ public class PassProduct extends BaseTimeEntity {
     @Column(name = "default_validity_days", nullable = false)
     private int defaultValidityDays;
 
-    @Column(nullable = false)
-    private boolean active;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PassProductStatus status;
 
     public PassProduct(
             String code,
@@ -57,7 +60,7 @@ public class PassProduct extends BaseTimeEntity {
         this.defaultPrice = defaultPrice;
         this.defaultCount = defaultCount;
         this.defaultValidityDays = defaultValidityDays;
-        this.active = true;
+        this.status = PassProductStatus.ACTIVE;
     }
 }
 
