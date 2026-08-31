@@ -110,11 +110,86 @@ class MemberPassMigrationIntegrationTest {
         assertThat(expandForeignKeyCount).isZero();
     }
 
+    @Test
+    void rejectsSecondReservationDebitForSameReservation() {
+        ReservationFixture fixture = insertReservationFixture(10);
+        insertHistory(fixture.memberPassId(), fixture.reservationId(), "RESERVATION_DEBIT", -1, 9);
+
+        assertThatThrownBy(() -> insertHistory(fixture.memberPassId(), fixture.reservationId(), "RESERVATION_DEBIT", -1, 8))
+                .hasMessageContaining("uk_member_pass_history_reservation_debit");
+    }
+
+    @Test
+    void rejectsSecondCancellationRefundForSameReservation() {
+        ReservationFixture fixture = insertReservationFixture(10);
+        insertHistory(fixture.memberPassId(), fixture.reservationId(), "RESERVATION_DEBIT", -1, 9);
+        insertHistory(fixture.memberPassId(), fixture.reservationId(), "CANCELLATION_REFUND", 1, 10);
+
+        assertThatThrownBy(() -> insertHistory(fixture.memberPassId(), fixture.reservationId(), "CANCELLATION_REFUND", 1, 11))
+                .hasMessageContaining("uk_member_pass_history_cancellation_refund");
+    }
+
     private Fixture insertValidFixture() {
         return transactionTemplate.execute(status -> {
             Long memberPassId = insertMemberPass(10);
             Long historyId = insertIssuedHistory(memberPassId, 10);
             return new Fixture(memberPassId, historyId);
+        });
+    }
+
+    private ReservationFixture insertReservationFixture(int initialCount) {
+        Long memberPassId = transactionTemplate.execute(status -> {
+            Long id = insertMemberPass(initialCount);
+            insertIssuedHistory(id, initialCount);
+            return id;
+        });
+        String suffix = UUID.randomUUID().toString();
+        Long instructorId = jdbcTemplate.queryForObject("""
+                INSERT INTO instructor (name, created_at, updated_at)
+                VALUES ('강사', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                RETURNING id
+                """, Long.class);
+        Long classSessionId = jdbcTemplate.queryForObject("""
+                INSERT INTO class_session (
+                    instructor_id, class_type, start_at, duration_minutes,
+                    reservation_open_at, capacity, reserved_count, status,
+                    created_at, updated_at
+                ) VALUES (
+                    ?, 'REFORMER', CURRENT_TIMESTAMP, 50,
+                    CURRENT_TIMESTAMP, 4, 1, 'SCHEDULED',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                RETURNING id
+                """, Long.class, instructorId);
+        Long memberId = jdbcTemplate.queryForObject(
+                "SELECT member_id FROM member_pass WHERE id = ?", Long.class, memberPassId);
+        Long reservationId = jdbcTemplate.queryForObject("""
+                INSERT INTO reservation (
+                    member_id, class_session_id, member_pass_id, status,
+                    reserved_at, created_at, updated_at
+                ) VALUES (
+                    ?, ?, ?, 'RESERVED',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                RETURNING id
+                """, Long.class, memberId, classSessionId, memberPassId);
+        return new ReservationFixture(memberPassId, reservationId);
+    }
+
+    private void insertHistory(Long memberPassId, Long reservationId, String type, int countDelta, int remainingCountAfter) {
+        transactionTemplate.executeWithoutResult(status -> {
+            jdbcTemplate.update("""
+                    INSERT INTO member_pass_history (
+                        member_pass_id, reservation_id, type, count_delta,
+                        remaining_count_after, actor_type, memo, created_at, updated_at
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, 'MEMBER', NULL,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                    """, memberPassId, reservationId, type, countDelta, remainingCountAfter);
+            jdbcTemplate.update(
+                    "UPDATE member_pass SET remaining_count = ? WHERE id = ?",
+                    remainingCountAfter, memberPassId);
         });
     }
 
@@ -161,5 +236,8 @@ class MemberPassMigrationIntegrationTest {
     }
 
     private record Fixture(Long memberPassId, Long historyId) {
+    }
+
+    private record ReservationFixture(Long memberPassId, Long reservationId) {
     }
 }

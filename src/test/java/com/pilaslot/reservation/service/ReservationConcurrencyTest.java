@@ -133,6 +133,23 @@ class ReservationConcurrencyTest {
         softly.assertThat(result.persistedReservedCount())
                 .as("class_session.reserved_count는 항상 실제 RESERVED 예약 건수와 같아야 한다")
                 .isEqualTo((int) result.actualReservedRows());
+        assertMemberPassBalancesReconcile(result.racingMemberIds());
+        softly.assertAll();
+    }
+
+    private void assertMemberPassBalancesReconcile(List<Long> memberIds) {
+        SoftAssertions softly = new SoftAssertions();
+        for (Long memberId : memberIds) {
+            for (MemberPass memberPass : memberPassRepository.findAllByMemberIdOrderByExpiresOnAscIdAsc(memberId)) {
+                int historySum = memberPassHistoryRepository.findAllByMemberPassIdOrderByIdAsc(memberPass.getId())
+                        .stream()
+                        .mapToInt(MemberPassHistory::getCountDelta)
+                        .sum();
+                softly.assertThat(memberPass.getRemainingCount())
+                        .as("memberPassId=%d의 remainingCount는 history countDelta 합과 같아야 한다", memberPass.getId())
+                        .isEqualTo(historySum);
+            }
+        }
         softly.assertAll();
     }
 
@@ -246,7 +263,8 @@ class ReservationConcurrencyTest {
                 actualReservedRows,
                 persistedReservedCount,
                 failureBreakdown,
-                unexpectedFailures
+                unexpectedFailures,
+                racingMemberIds
         );
     }
 
@@ -279,7 +297,8 @@ class ReservationConcurrencyTest {
             long actualReservedRows,
             int persistedReservedCount,
             Map<String, AtomicInteger> failureBreakdown,
-            List<Throwable> unexpectedFailures
+            List<Throwable> unexpectedFailures,
+            List<Long> racingMemberIds
     ) {
     }
 

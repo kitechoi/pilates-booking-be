@@ -204,6 +204,7 @@ class CancelConcurrencyTest {
                 .as("reserved_count는 실제 취소 1건만큼만 감소해야 한다")
                 .isEqualTo(expectedReservedCountAfterOneRealCancel);
         softly.assertAll();
+        assertMemberPassBalancesReconcile(java.util.List.of(finalTargetMemberId));
     }
 
     @RepeatedTest(10)
@@ -303,6 +304,23 @@ class CancelConcurrencyTest {
         softly.assertThat(persistedReservedCount)
                 .as("reserved_count는 lost update 없이 실제 취소 건수만큼 정확히 감소해야 한다")
                 .isEqualTo(expectedReservedCount);
+        softly.assertAll();
+        assertMemberPassBalancesReconcile(memberIds);
+    }
+
+    private void assertMemberPassBalancesReconcile(java.util.List<Long> memberIds) {
+        SoftAssertions softly = new SoftAssertions();
+        for (Long memberId : memberIds) {
+            for (MemberPass memberPass : memberPassRepository.findAllByMemberIdOrderByExpiresOnAscIdAsc(memberId)) {
+                int historySum = memberPassHistoryRepository.findAllByMemberPassIdOrderByIdAsc(memberPass.getId())
+                        .stream()
+                        .mapToInt(MemberPassHistory::getCountDelta)
+                        .sum();
+                softly.assertThat(memberPass.getRemainingCount())
+                        .as("memberPassId=%d의 remainingCount는 history countDelta 합과 같아야 한다", memberPass.getId())
+                        .isEqualTo(historySum);
+            }
+        }
         softly.assertAll();
     }
 
