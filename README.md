@@ -1,8 +1,10 @@
 <div align="center">
 
-# PilaSlot
+# 필라슬롯 PilaSlot
 
 ### 동시 예약에도 안전한 필라테스 수업 예약 백엔드
+
+[![pilaslot.xyz](https://img.shields.io/badge/🔗_Live-pilaslot.xyz-E75480?style=flat-square)](https://pilaslot.xyz)
 
 [서비스 체험](https://pilaslot.xyz) ·
 [Swagger API](https://api.pilaslot.xyz/swagger-ui/index.html) ·
@@ -11,20 +13,22 @@
 
 [![Gradle Test](https://github.com/kitechoi/pilates-booking-be/actions/workflows/gradle-test.yml/badge.svg)](https://github.com/kitechoi/pilates-booking-be/actions/workflows/gradle-test.yml)
 [![Deploy](https://github.com/kitechoi/pilates-booking-be/actions/workflows/deploy.yml/badge.svg)](https://github.com/kitechoi/pilates-booking-be/actions/workflows/deploy.yml)
-![Java](https://img.shields.io/badge/Java-17-orange)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-6DB33F)
+![Java](https://img.shields.io/badge/Java-17-orange?style=flat-square)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-6DB33F?style=flat-square)
 
 </div>
 
 실제 필라테스 스튜디오의 수업 일정과 수강권 정책을 반영한 예약 서비스입니다. 동시 요청에서도 수업 정원, 회원별 주간 제한, 수강권 잔여 횟수의 정합성을 유지하도록 설계하고 PostgreSQL 동시성 테스트로 검증했습니다.
 
-## Service Preview
+## 🎬 Service Preview
 
 ![PilaSlot 서비스 화면](docs/images/service-preview.png)
 
 주간 수업 조회 → 예약 확인 → 내 예약 확인 → 보유 수강권 확인
 
-## Troubleshooting
+<a id="troubleshooting"></a>
+
+## 🐛 Troubleshooting
 
 동시 예약 상황에서 발견한 문제와 해결 과정입니다.
 
@@ -54,9 +58,8 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 예약 · 이력 저장
 ```
 
-> **JPA Lock Insight**
->
-> 취소 처리에서 예약을 먼저 조회하면 연관된 `ClassSession`이 영속성 컨텍스트에 적재됩니다. 이후 비관적 락 쿼리를 실행해도 같은 엔티티 인스턴스가 재사용될 수 있어, DB의 최신 상태로 자동 갱신된다고 가정할 수 없습니다.
+> [!IMPORTANT]
+> **JPA Lock Insight** — 취소 처리에서 예약을 먼저 조회하면 연관된 `ClassSession`이 영속성 컨텍스트에 적재됩니다. 이후 비관적 락 쿼리를 실행해도 같은 엔티티 인스턴스가 재사용될 수 있어, DB의 최신 상태로 자동 갱신된다고 가정할 수 없습니다.
 >
 > 이를 피하기 위해 수업 ID만 projection으로 먼저 조회한 뒤 `ClassSession`을 잠그고, 그 다음 예약을 조회하도록 순서를 변경했습니다.
 
@@ -78,7 +81,7 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 
 <a id="architecture"></a>
 
-## Architecture
+## 🏗️ Architecture
 
 ![PilaSlot 아키텍처](docs/images/architecture.svg)
 
@@ -97,7 +100,7 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 
 </details>
 
-## Core Features
+## ✨ Core Features
 
 | 수업 | 예약 | 수강권 | 인증 |
 |---|---|---|---|
@@ -111,7 +114,7 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 
 </details>
 
-## Domain Rules
+## 📋 Domain Rules
 
 - **수업 정원**: 리포머 · 체어바렐 · 랜덤 4명, 애니멀플로우 8명
 - **예약 오픈**: 수업 주차 전주 금요일 13시 (운영 데이터 기준)
@@ -121,7 +124,7 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 - **수강권 사용 순서(FEFO)**: 유효한 수강권 중 만료일이 가장 이른 것부터 차감
 - **차감 · 환불 이력**: 예약/취소마다 `MemberPassHistory`에 append-only로 기록
 
-## Technology
+## 🛠️ Technology
 
 | 구분 | 기술 |
 |---|---|
@@ -134,7 +137,7 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 | Infrastructure | EC2, RDS, ECR, AWS Systems Manager(SSM) |
 | Deployment | GitHub Actions, Docker Compose, Caddy |
 
-## Testing
+## 🧪 Testing
 
 - **도메인 규칙**: 정원, 예약/취소 마감, 주간 제한, 수강권 유효기간 단위 테스트
 - **인증 · 인가**: JWT 기반 접근 제어 테스트
@@ -143,10 +146,10 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 - **트랜잭션 롤백**: 예외 발생 시 부분 반영되지 않는지 확인
 - **동시성 회귀 테스트**: [Troubleshooting](#troubleshooting) 참고
 
-## Try It
+## 🎯 Try It
 
-- [PilaSlot 실행하기](https://pilaslot.xyz)
-- [Swagger API 확인하기](https://api.pilaslot.xyz/swagger-ui/index.html)
+- 🔗 [PilaSlot 실행하기](https://pilaslot.xyz)
+- 📑 [Swagger API 확인하기](https://api.pilaslot.xyz/swagger-ui/index.html)
 
 <details>
 <summary>데모 계정 보기</summary>
@@ -155,7 +158,8 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 |---|---|
 | `1234` | `1234` |
 
-30회 수강권을 보유한 계정이며, 다른 방문자와 예약 · 잔여 횟수를 공유합니다.
+> [!NOTE]
+> 30회 수강권을 보유한 계정이며, 다른 방문자와 예약 · 잔여 횟수를 공유합니다.
 
 </details>
 
@@ -171,7 +175,7 @@ MemberPass Lock (잔여 횟수 차감 · 환불)
 
 전체 명세는 Swagger UI를 참고하세요.
 
-## Getting Started
+## 🚀 Getting Started
 
 **요구 사항**: 직접 실행은 Java 17 + Docker, 전체 컨테이너 실행은 Docker만 있으면 됩니다. 테스트는 Docker가 필요합니다(Testcontainers가 PostgreSQL을 실행).
 
@@ -192,14 +196,16 @@ docker compose up --build
 ./gradlew test
 ```
 
-## Operations
+## ⚙️ Operations
 
 - 운영 데이터의 영속성 · 자동 백업 · 애플리케이션과의 장애 격리를 위해 PostgreSQL은 RDS에서 운영합니다.
 - 스키마는 Flyway 마이그레이션으로 관리합니다.
 - 운영 초기 데이터(강사, 클래스 세션 등)는 [검토된 bootstrap SQL](docs/operations/production-bootstrap-template.md)로 수동 입력합니다. 애플리케이션 시작 시 자동으로 삽입하지 않습니다.
-- 민감정보(DB 비밀번호, JWT 시크릿)는 AWS SSM Parameter Store에 저장하고 배포 시점에 EC2가 직접 조회합니다.
 
-## Contact
+> [!NOTE]
+> 민감정보(DB 비밀번호, JWT 시크릿)는 AWS SSM Parameter Store에 저장하고 배포 시점에 EC2가 직접 조회합니다. GitHub Secrets나 커맨드 로그에는 노출되지 않습니다.
+
+## 📬 Contact
 
 - GitHub: [@kitechoi](https://github.com/kitechoi)
 - Email: chevel0212@gmail.com
