@@ -1,3 +1,11 @@
 {$API_DOMAIN} {
-	reverse_proxy __APP_UPSTREAM__
+	@blockedActuator {
+		path /actuator /actuator/* /actuator;*
+		not expression `{http.request.orig_uri}.matches('^/actuator/health([?].*)?$')`
+	}
+
+	route {
+		respond @blockedActuator "Not Found" 404
+		reverse_proxy __APP_UPSTREAM__
+	}
 }
